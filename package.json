@@ -1,0 +1,35 @@
+{
+  "name": "contextor",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local-first context aggregation and browser automation toolkit.",
+  "bin": {
+    "contextor": "dist/cli/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && mkdir -p dist/gui && cp -R src/gui/public dist/gui/public",
+    "typecheck": "tsc --noEmit",
+    "cli": "tsx src/cli/index.ts",
+    "gui": "tsx src/gui/server.ts",
+    "start": "node dist/gui/server.js",
+    "smoke:folder": "node dist/cli/index.js folder ./docs --goal \"summarize the documentation in this repository\""
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "commander": "^14.0.0",
+    "express": "^5.1.0",
+    "mammoth": "^1.9.1",
+    "pdf-parse": "^1.1.1",
+    "playwright-core": "^1.54.1",
+    "turndown": "^7.2.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.3",
+    "@types/node": "^24.6.0",
+    "@types/turndown": "^5.0.5",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  }
+}

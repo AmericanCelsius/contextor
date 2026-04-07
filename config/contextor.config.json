@@ -1,0 +1,71 @@
+{
+  "allowedDirectories": [
+    ".",
+    "~/Desktop",
+    "~/Documents",
+    "~/Downloads"
+  ],
+  "outputDirectory": "./output",
+  "browser": {
+    "attachUrl": "http://127.0.0.1:9222",
+    "mode": "attach-or-launch",
+    "channel": "chrome",
+    "userDataDir": "~/Library/Application Support/contextor/chrome-profile",
+    "maxExpandRounds": 8,
+    "maxScrollPasses": 18
+  },
+  "strategies": {
+    "enabled": [
+      "generic",
+      "linkedin",
+      "gmail",
+      "portal",
+      "instagram"
+    ]
+  },
+  "redaction": {
+    "enabled": true,
+    "maskEmails": false,
+    "maskTokens": true,
+    "maskCookies": true,
+    "maxExcerptLength": 2400
+  },
+  "socialAudit": {
+    "maxScrollRounds": 24,
+    "listPageTimeoutMs": 12000,
+    "brandKeywords": [
+      "official",
+      "brand",
+      "media",
+      "news",
+      "shop",
+      "store",
+      "club",
+      "university",
+      "college",
+      "school",
+      "team",
+      "studio",
+      "agency",
+      "press"
+    ],
+    "publicFigureKeywords": [
+      "actor",
+      "artist",
+      "creator",
+      "coach",
+      "speaker",
+      "verified",
+      "host",
+      "athlete",
+      "musician"
+    ],
+    "dryRunDefault": true,
+    "requireExplicitAccountActions": true
+  },
+  "safety": {
+    "readOnlyBrowserByDefault": true,
+    "allowAccountActions": false,
+    "requireConfirmFlag": true
+  }
+}
