@@ -7,7 +7,8 @@ Contextor is a local-first context aggregation and browser automation tool for m
 - Preserved the `v0.2.0` TUI as the baseline and moved polish work into `v0.2.1`
 - Added animated startup, shutdown, run-progress, browser-connect, and path-validation indicators
 - Added live input echo so the last navigation or command key is always visible
-- Added folder-path autocomplete and quoted-path normalization for TUI path entry
+- Added folder-path autocomplete, recommended Finder/current working directory seeds, cursor movement, and quoted-path normalization for TUI path entry
+- Made folder compile default to `File Limit = all`, with progress feedback in both the TUI and `contextor folder`
 - Added descriptive run folder names: `output/runs/<timestamp>__<workflow>__<goal-slug>/`
 - Added `contextor launch` and `contextor start` as one-line bootstrap commands
 - Kept the existing core workflows intact and read-only by default
@@ -99,6 +100,7 @@ Keyboard-first controls:
 - `↑` / `↓` select action
 - `Enter` run or open a form
 - `Tab` switch inspect panels, or autocomplete the folder path field when it is active
+- `Left` / `Right` move the cursor inside active text fields
 - `r` refresh
 - `o` open the latest output folder
 - `l` focus logs
@@ -106,7 +108,7 @@ Keyboard-first controls:
 - `c` focus config
 - `b` focus browser status
 - `Esc` back out of forms
-- `q` quit
+- `q` open the quit confirmation prompt
 
 ## CLI Reference
 
@@ -152,6 +154,11 @@ Behavior:
 ```bash
 contextor folder "/absolute/path/to/folder" --goal "summarize this project folder"
 ```
+
+Default behavior:
+
+- scans all supported files unless you explicitly pass `--limit <count>`
+- shows a live progress bar in direct CLI mode
 
 Supported file types:
 

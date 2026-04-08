@@ -62,6 +62,8 @@ npm run smoke:folder
 - avoid external animation runtimes unless complexity stays very low
 - preserve the input-echo layer so the last command/navigation key remains visible
 - keep folder path autocomplete and quoted-path handling working
+- preserve quit confirmation on `q`
+- keep folder compile defaulted to `all` unless the operator explicitly narrows it
 
 ## Safety Notes
 

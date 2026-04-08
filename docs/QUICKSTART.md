@@ -58,6 +58,11 @@ Compile a folder:
 contextor folder "/absolute/path/to/folder" --goal "summarize this project folder"
 ```
 
+Folder compile notes:
+
+- default file limit is `all`
+- both the TUI and the direct CLI command show live folder progress
+
 Export the current LinkedIn page:
 
 ```bash
