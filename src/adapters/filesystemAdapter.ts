@@ -3,11 +3,60 @@ import path from "node:path";
 
 import { Logger } from "../core/logger";
 import { scoreFileCandidate, suppressDuplicateCandidates } from "../core/relevance";
-import { ContextorConfig, FileCandidate, FileSource } from "../core/types";
+import { ContextorConfig, DirectoryCopyBundle, DirectoryCopyEntry, FileCandidate, FileSource } from "../core/types";
 import { isWithinDirectory, pathExists, resolveUserPath } from "../utils/files";
 import { extractKeyPoints, summarizeText, truncate } from "../utils/text";
 
 const SUPPORTED_EXTENSIONS = new Set([".txt", ".md", ".pdf", ".json", ".csv", ".docx"]);
+const KNOWN_BINARY_EXTENSIONS = new Set([
+  ".7z",
+  ".a",
+  ".ai",
+  ".apk",
+  ".bin",
+  ".bmp",
+  ".class",
+  ".dmg",
+  ".dll",
+  ".doc",
+  ".epub",
+  ".exe",
+  ".gif",
+  ".gz",
+  ".heic",
+  ".heif",
+  ".ico",
+  ".jar",
+  ".jpeg",
+  ".jpg",
+  ".mp3",
+  ".mp4",
+  ".mov",
+  ".otf",
+  ".pages",
+  ".pdf.pkg",
+  ".pdf",
+  ".png",
+  ".ppt",
+  ".pptx",
+  ".psd",
+  ".pyc",
+  ".so",
+  ".tar",
+  ".tif",
+  ".tiff",
+  ".ttf",
+  ".wav",
+  ".webp",
+  ".woff",
+  ".woff2",
+  ".xls",
+  ".xlsx",
+  ".zip",
+]);
+const COPY_TEXT_SPECIAL_CASES = new Set([".csv", ".docx", ".json", ".md", ".pdf", ".txt"]);
+const COPY_TEXT_CHAR_LIMIT = 250_000;
+const BINARY_SNIFF_BYTES = 4_096;
 
 export class FilesystemAdapter {
   constructor(
@@ -105,7 +154,90 @@ export class FilesystemAdapter {
     return deduped;
   }
 
-  private async walkDirectory(rootPath: string, signal?: AbortSignal): Promise<FileCandidate[]> {
+  async copyDirectory(
+    folderPath: string,
+    options: {
+      onProgress?: (progress: { phase: "indexing" | "extracting" | "compiling" | "complete"; current: number; total: number; details?: string }) => Promise<void> | void;
+      signal?: AbortSignal;
+    } = {},
+  ): Promise<DirectoryCopyBundle> {
+    throwIfAborted(options.signal);
+    const resolvedPath = resolveUserPath(folderPath);
+    if (!(await pathExists(resolvedPath))) {
+      throw new Error(`Folder does not exist: ${resolvedPath}`);
+    }
+
+    if (!isWithinDirectory(resolvedPath, this.config.allowedDirectories)) {
+      throw new Error(
+        `Folder is outside the allowed directories. Update config/contextor.config.json to allow ${resolvedPath}`,
+      );
+    }
+
+    await this.logger.info("Scanning folder for literal directory copy", { folderPath: resolvedPath });
+    const candidates = await this.walkDirectory(resolvedPath, options.signal, { includeAllFiles: true });
+    throwIfAborted(options.signal);
+
+    await options.onProgress?.({
+      phase: "indexing",
+      current: 0,
+      total: candidates.length,
+      details: `Indexed ${candidates.length} file(s). Beginning literal extraction pass.`,
+    });
+
+    const entries: DirectoryCopyEntry[] = [];
+    for (const [index, candidate] of candidates.entries()) {
+      throwIfAborted(options.signal);
+      const literal = await this.extractLiteralContent(candidate.path, candidate.extension, candidate.size);
+      entries.push({
+        path: candidate.path,
+        relativePath: path.relative(resolvedPath, candidate.path) || candidate.name,
+        name: candidate.name,
+        extension: candidate.extension,
+        modifiedTime: new Date(candidate.modifiedTimeMs).toISOString(),
+        size: candidate.size,
+        content: literal.content,
+        contentKind: literal.contentKind,
+        note: literal.note,
+      });
+
+      await options.onProgress?.({
+        phase: "extracting",
+        current: index + 1,
+        total: candidates.length,
+        details: candidate.name,
+      });
+    }
+
+    throwIfAborted(options.signal);
+    const includedFiles = entries.filter((entry) => entry.contentKind === "text").length;
+    const skippedFiles = entries.length - includedFiles;
+
+    await this.logger.info("Literal directory copy collected", {
+      totalFiles: entries.length,
+      includedFiles,
+      skippedFiles,
+    });
+    await options.onProgress?.({
+      phase: "complete",
+      current: entries.length,
+      total: entries.length,
+      details: `Collected ${includedFiles} readable file(s) and ${skippedFiles} skipped/error entry(ies).`,
+    });
+
+    return {
+      rootPath: resolvedPath,
+      entries,
+      totalFiles: entries.length,
+      includedFiles,
+      skippedFiles,
+    };
+  }
+
+  private async walkDirectory(
+    rootPath: string,
+    signal?: AbortSignal,
+    options: { includeAllFiles?: boolean } = {},
+  ): Promise<FileCandidate[]> {
     throwIfAborted(signal);
     const candidates: FileCandidate[] = [];
     const entries = await fs.readdir(rootPath, { withFileTypes: true });
@@ -124,7 +256,7 @@ export class FilesystemAdapter {
       }
 
       const extension = path.extname(entry.name).toLowerCase();
-      if (!SUPPORTED_EXTENSIONS.has(extension)) {
+      if (!options.includeAllFiles && !SUPPORTED_EXTENSIONS.has(extension)) {
         continue;
       }
 
@@ -169,6 +301,74 @@ export class FilesystemAdapter {
     }
   }
 
+  private async extractLiteralContent(
+    filePath: string,
+    extension: string,
+    size: number,
+  ): Promise<{ content: string; contentKind: DirectoryCopyEntry["contentKind"]; note?: string }> {
+    try {
+      if (COPY_TEXT_SPECIAL_CASES.has(extension)) {
+        const extracted =
+          extension === ".json"
+            ? await this.readJsonLiteral(filePath)
+            : extension === ".pdf"
+              ? await this.extractPdfText(filePath)
+              : extension === ".docx"
+                ? await this.extractDocxText(filePath)
+                : await fs.readFile(filePath, "utf8");
+        const trimmed = limitLiteralContent(extracted);
+        return {
+          content: trimmed.content,
+          contentKind: "text",
+          note: trimmed.note,
+        };
+      }
+
+      if (KNOWN_BINARY_EXTENSIONS.has(extension)) {
+        return {
+          content: `Skipped binary or non-text file: ${filePath}`,
+          contentKind: "skipped",
+          note: "Known binary or non-text extension.",
+        };
+      }
+
+      const buffer = await fs.readFile(filePath);
+      if (isProbablyBinary(buffer.subarray(0, Math.min(buffer.length, BINARY_SNIFF_BYTES)))) {
+        return {
+          content: `Skipped binary-looking file: ${filePath}`,
+          contentKind: "skipped",
+          note: "Binary content detected during sniffing.",
+        };
+      }
+
+      const trimmed = limitLiteralContent(buffer.toString("utf8"));
+      return {
+        content: trimmed.content,
+        contentKind: "text",
+        note: trimmed.note ?? (size > COPY_TEXT_CHAR_LIMIT ? `Original file size: ${size} bytes.` : undefined),
+      };
+    } catch (error) {
+      await this.logger.warn("Failed to collect literal file content", {
+        filePath,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return {
+        content: `Failed to read file: ${filePath}`,
+        contentKind: "error",
+        note: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  private async readJsonLiteral(filePath: string): Promise<string> {
+    const raw = await fs.readFile(filePath, "utf8");
+    try {
+      return JSON.stringify(JSON.parse(raw) as unknown, null, 2);
+    } catch {
+      return raw;
+    }
+  }
+
   private async extractPdfText(filePath: string): Promise<string> {
     const pdfParse = (await import("pdf-parse")).default as (
       input: Buffer,
@@ -195,6 +395,43 @@ export class FilesystemAdapter {
     const result = await mammoth.extractRawText({ path: filePath });
     return result.value;
   }
+}
+
+function limitLiteralContent(value: string): { content: string; note?: string } {
+  if (value.length <= COPY_TEXT_CHAR_LIMIT) {
+    return { content: value };
+  }
+
+  return {
+    content: `${value.slice(0, COPY_TEXT_CHAR_LIMIT).trimEnd()}\n\n[Truncated by Contextor after ${COPY_TEXT_CHAR_LIMIT} characters.]`,
+    note: `Truncated after ${COPY_TEXT_CHAR_LIMIT} characters to keep the aggregated bundle manageable.`,
+  };
+}
+
+function isProbablyBinary(buffer: Buffer): boolean {
+  if (buffer.length === 0) {
+    return false;
+  }
+
+  let suspiciousBytes = 0;
+  for (const byte of buffer) {
+    if (byte === 0) {
+      return true;
+    }
+
+    const isPrintable =
+      byte === 9 ||
+      byte === 10 ||
+      byte === 13 ||
+      (byte >= 32 && byte <= 126) ||
+      byte >= 128;
+
+    if (!isPrintable) {
+      suspiciousBytes += 1;
+    }
+  }
+
+  return suspiciousBytes / buffer.length > 0.25;
 }
 
 async function withMutedConsoleWarnings<T>(task: () => Promise<T>, patterns: RegExp[]): Promise<T> {

@@ -68,6 +68,41 @@ export const TUI_ACTIONS: TuiAction[] = [
     ],
   },
   {
+    id: "directory-copy",
+    label: "Copy Folder As Markdown/Text",
+    shortLabel: "copy",
+    description: "Create a literal directory export with a recursive file list and aggregated file bodies.",
+    formTitle: "Copy Folder As Markdown/Text",
+    submitLabel: "Run Directory Copy",
+    createFields: () => [
+      {
+        id: "folderPath",
+        label: "Folder Path",
+        type: "text",
+        value: "",
+        placeholder: "/absolute/path/to/folder",
+      },
+      {
+        id: "goal",
+        label: "Goal",
+        type: "text",
+        value: "create a literal directory copy for downstream review",
+      },
+      {
+        id: "format",
+        label: "Requested Format",
+        type: "select",
+        value: "both",
+        options: [
+          { label: "Markdown + Text", value: "both" },
+          { label: "Markdown priority", value: "md" },
+          { label: "Text priority", value: "txt" },
+        ],
+        hint: "Contextor still writes both root outputs for compatibility.",
+      },
+    ],
+  },
+  {
     id: "page-export",
     label: "Export Current Page",
     shortLabel: "page",

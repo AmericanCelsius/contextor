@@ -69,7 +69,7 @@ export function QuitSplash({ tick }: { tick: number }): React.JSX.Element {
       <Newline />
       <Text color={TUI_THEME.ok}>{frame}</Text>
       <Text color={TUI_THEME.text}>Restoring the original terminal screen...</Text>
-      <Text color={TUI_THEME.muted}>v{CONTEXTOR_VERSION} baseline preserved. v0.2.1 session closing.</Text>
+      <Text color={TUI_THEME.muted}>v{CONTEXTOR_VERSION} baseline preserved. v0.2.2 session closing.</Text>
     </Box>
   );
 }
@@ -240,7 +240,8 @@ export function WorkspacePane(props: {
           <Text color={TUI_THEME.ok}>{completionPulse} Workflow complete</Text>
           <Text color={TUI_THEME.ok}>{runState.result.summary}</Text>
           <Text color={TUI_THEME.text}>Run directory: {runState.result.runDir}</Text>
-          <Text color={TUI_THEME.text}>Context: {runState.result.contextMarkdownPath}</Text>
+          <Text color={TUI_THEME.text}>Markdown output: {runState.result.contextMarkdownPath}</Text>
+          <Text color={TUI_THEME.text}>Text output: {runState.result.contextTextPath}</Text>
           <Text color={TUI_THEME.text}>Manifest: {runState.result.manifestPath}</Text>
           <Newline />
           <Text color={TUI_THEME.accentSoft}>Completion Signal</Text>
@@ -373,7 +374,7 @@ export function FooterBar(props: {
   return (
     <Box borderStyle="single" borderColor={TUI_THEME.border} paddingX={1} paddingY={0} marginTop={1} flexDirection="column">
       <Text color={TUI_THEME.muted}>
-        ↑↓ move • ←→ / Tab switch • Enter run • Esc back • Ctrl+U clear field • x abort folder run • g launch browser • r refresh • o open output • l logs • u runs • c config • b browser • q confirm quit
+        ↑↓ move • ←→ / Tab switch • Enter run • Esc back • Ctrl+U clear field • x abort filesystem run • g launch browser • r refresh • o open output • l logs • u runs • c config • b browser • q confirm quit
       </Text>
       <Text color={TUI_THEME.accentSoft}>
         panel={props.panelView} {props.formMode ? "| form=active" : "| form=idle"} {props.loading ? "| refresh=busy" : ""}

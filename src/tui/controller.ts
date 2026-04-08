@@ -63,6 +63,22 @@ export async function executeWorkflow(
       ),
         events,
       };
+    case "directory-copy":
+      if (!values.folderPath) {
+        throw new Error("Folder Path is required.");
+      }
+      return {
+        result: await orchestrator.copyFolder(
+          {
+            goal: values.goal || "create a literal directory copy for downstream review",
+            folderPath: values.folderPath,
+            format: parseCopyFormat(values.format),
+          },
+          observe,
+          options.signal,
+        ),
+        events,
+      };
     case "page-export":
       return {
         result: await orchestrator.exportCurrentPage(
@@ -120,6 +136,15 @@ function parseFolderLimit(value: string | undefined): number | undefined {
 
   const parsed = Number(normalized);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function parseCopyFormat(value: string | undefined): "md" | "txt" | "both" {
+  const normalized = value?.trim().toLowerCase();
+  if (normalized === "md" || normalized === "txt") {
+    return normalized;
+  }
+
+  return "both";
 }
 
 export async function getFolderPathStatus(orchestrator: ContextorOrchestrator, rawValue: string): Promise<TuiPathStatus> {

@@ -64,7 +64,8 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
   });
 
   const selectedAction = TUI_ACTIONS[selectedActionIndex]!;
-  const folderFieldValue = activeFormAction?.id === "folder" ? findFieldValue(formFields, "folderPath") : "";
+  const activeFormUsesFolderPath = actionHasFolderPath(activeFormAction);
+  const folderFieldValue = activeFormUsesFolderPath ? findFieldValue(formFields, "folderPath") : "";
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -109,7 +110,7 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
   }, [runState.state]);
 
   useEffect(() => {
-    if (activeFormAction?.id !== "folder") {
+    if (!activeFormUsesFolderPath) {
       setFolderPathStatus({
         state: "idle",
         message: "Enter a folder path. Quotes and bracketed names are accepted.",
@@ -138,7 +139,7 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
     }, 120);
 
     return () => clearTimeout(timer);
-  }, [activeFormAction?.id, folderFieldValue, props.orchestrator, recommendedFolderPaths]);
+  }, [activeFormUsesFolderPath, folderFieldValue, props.orchestrator, recommendedFolderPaths]);
 
   useEffect(() => {
     const nextSuggestions = folderPathStatus.matches.length > 0 ? folderPathStatus.matches : recommendedFolderPaths;
@@ -188,8 +189,8 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
 
     if (confirmationState) {
       if (key.return) {
-        if (confirmationState.type === "folder-submit" && pendingFormSubmission) {
-          recordInput(label, "Confirm folder compile");
+        if (confirmationState.type === "workflow-submit" && pendingFormSubmission) {
+          recordInput(label, `Confirm ${pendingFormSubmission.action.label}`);
           setConfirmationState(null);
           void beginWorkflow(pendingFormSubmission.action, pendingFormSubmission.values);
           return;
@@ -222,9 +223,10 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
         setConfirmationState({
           type: "abort-run",
           title: "ABORT WORKFLOW",
-          message: "Abort the current folder compile?",
+          message: "Abort the current workflow?",
           details: [
-            runState.runDir ? `Run: ${runState.runDir}` : "Folder compile is active.",
+            `Workflow: ${runState.title}`,
+            runState.runDir ? `Run: ${runState.runDir}` : "A filesystem workflow is active.",
             "Contextor will stop after the current file operation completes.",
           ],
           confirmLabel: "Abort run",
@@ -379,7 +381,7 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
       return;
     }
 
-    const abortController = action.id === "folder" ? new AbortController() : null;
+    const abortController = isAbortableAction(action.id) ? new AbortController() : null;
     setRunAbortController(abortController);
     setPendingFormSubmission(null);
     setActiveFormAction(null);
@@ -399,7 +401,7 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
       progressUnit: undefined,
       progressPhase: undefined,
       actionId: action.id,
-      abortable: action.id === "folder",
+      abortable: isAbortableAction(action.id),
       abortRequested: false,
     });
 
@@ -471,7 +473,7 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
         liveLogs: [],
         eventCount: 0,
       });
-      if (action.id === "folder") {
+      if (actionHasFolderPath(action)) {
         void primeFolderForm(nextFields);
       }
       return;
@@ -614,8 +616,8 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
     }
 
     if (key.return) {
-      if (activeFormAction.id === "folder") {
-        recordInput(label, "Open folder compile confirmation");
+      if (actionHasFolderPath(activeFormAction)) {
+        recordInput(label, `Open ${activeFormAction.label} confirmation`);
         void submitForm(true);
       } else {
         recordInput(label, `Submit ${activeFormAction.label}`);
@@ -725,7 +727,7 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
     }
 
     const values = Object.fromEntries(formFields.map((field) => [field.id, field.value]));
-    if (activeFormAction.id === "folder") {
+    if (actionHasFolderPath(activeFormAction)) {
       if (folderPathStatus.state !== "ok") {
         setRunState({
           state: "error",
@@ -743,15 +745,11 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
       if (requireConfirmation) {
         setPendingFormSubmission({ action: activeFormAction, values });
         setConfirmationState({
-          type: "folder-submit",
-          title: "CONFIRM FOLDER COMPILE",
-          message: "Start this folder compile?",
-          details: [
-            `Folder: ${folderPathStatus.resolvedPath || values.folderPath}`,
-            `Goal: ${values.goal || "summarize this project folder"}`,
-            `File limit: ${(values.limit || "all").trim() || "all"}`,
-          ],
-          confirmLabel: "Start folder compile",
+          type: "workflow-submit",
+          title: `CONFIRM ${activeFormAction.label.toUpperCase()}`,
+          message: `Start ${activeFormAction.label.toLowerCase()}?`,
+          details: buildFolderWorkflowConfirmationDetails(activeFormAction, values, folderPathStatus.resolvedPath),
+          confirmLabel: `Start ${activeFormAction.shortLabel}`,
           cancelLabel: "Return to the form",
         });
         return;
@@ -911,7 +909,7 @@ function buildFormInsights(
 
   const insights: TuiFormInsight[] = [];
 
-  if (action.id === "folder") {
+  if (actionHasFolderPath(action)) {
     const limitValue = findFieldValue(fields, "limit") || "all";
     insights.push({
       tone: folderPathTone(folderPathStatus.state),
@@ -937,14 +935,30 @@ function buildFormInsights(
       });
     }
 
-    insights.push({
-      tone: limitValue.trim().toLowerCase() === "all" ? "ok" : "neutral",
-      label: "File limit",
-      details:
-        limitValue.trim().toLowerCase() === "all"
-          ? "all supported files will be scanned and ranked."
-          : `Contextor will stop after the top ${limitValue.trim()} file sources.`,
-    });
+    if (action.id === "folder") {
+      insights.push({
+        tone: limitValue.trim().toLowerCase() === "all" ? "ok" : "neutral",
+        label: "File limit",
+        details:
+          limitValue.trim().toLowerCase() === "all"
+            ? "all supported files will be scanned and ranked."
+            : `Contextor will stop after the top ${limitValue.trim()} file sources.`,
+      });
+    }
+
+    if (action.id === "directory-copy") {
+      const formatValue = findFieldValue(fields, "format") || "both";
+      insights.push({
+        tone: "ok",
+        label: "Literal copy mode",
+        details:
+          formatValue === "md"
+            ? "Markdown is the requested primary format. Contextor also writes a text companion."
+            : formatValue === "txt"
+              ? "Text is the requested primary format. Contextor also writes a markdown companion."
+              : "Contextor will write both markdown and text root outputs for the directory copy.",
+      });
+    }
   }
 
   if (!snapshot) {
@@ -1142,6 +1156,35 @@ function findAction(id: TuiAction["id"]): TuiAction {
 
 function findFieldValue(fields: TuiFormField[], fieldId: string): string {
   return fields.find((field) => field.id === fieldId)?.value ?? "";
+}
+
+function actionHasFolderPath(action: TuiAction | null): boolean {
+  return action?.id === "folder" || action?.id === "directory-copy";
+}
+
+function isAbortableAction(actionId: TuiAction["id"] | undefined): boolean {
+  return actionId === "folder" || actionId === "directory-copy";
+}
+
+function buildFolderWorkflowConfirmationDetails(
+  action: TuiAction,
+  values: Record<string, string>,
+  resolvedPath: string | undefined,
+): string[] {
+  const details = [
+    `Folder: ${resolvedPath || values.folderPath}`,
+    `Goal: ${values.goal || action.description}`,
+  ];
+
+  if (action.id === "folder") {
+    details.push(`File limit: ${(values.limit || "all").trim() || "all"}`);
+  }
+
+  if (action.id === "directory-copy") {
+    details.push(`Requested format: ${(values.format || "both").trim() || "both"}`);
+  }
+
+  return details;
 }
 
 function folderPathTone(state: TuiPathStatus["state"]): TuiFormInsight["tone"] {

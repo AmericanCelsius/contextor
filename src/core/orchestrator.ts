@@ -9,6 +9,7 @@ import {
   CompileGoalOptions,
   CompileTabsOptions,
   ContextorConfig,
+  CopyFolderOptions,
   ExportCurrentPageOptions,
   LatestLogSummary,
   RecentRunSummary,
@@ -19,6 +20,7 @@ import {
 import { createRunDirectories, listRecentRuns, readLogTail } from "../utils/files";
 import { runCompileFolderWorkflow } from "../workflows/compileFolderWorkflow";
 import { runCompileTabsWorkflow } from "../workflows/compileTabsWorkflow";
+import { runCopyFolderWorkflow } from "../workflows/copyFolderWorkflow";
 import { runExportCurrentPageWorkflow } from "../workflows/exportCurrentPageWorkflow";
 import { runInstagramAuditWorkflow } from "../workflows/instagramAuditWorkflow";
 
@@ -143,6 +145,59 @@ export class ContextorOrchestrator {
       await observe?.({
         kind: "run-failed",
         workflow: "folder",
+        goal: options.goal,
+        runDir: runDirectories.root,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
+  }
+
+  async copyFolder(options: CopyFolderOptions, observe?: RunObserver, signal?: AbortSignal): Promise<WorkflowResult> {
+    const runDirectories = await createRunDirectories(this.config.outputDirectory, {
+      workflow: "directory-copy",
+      goal: options.goal,
+    });
+    const logger = new RunLogger(runDirectories, {
+      onWrite: (entry) =>
+        observe?.({
+          kind: "log",
+          workflow: "directory-copy",
+          goal: options.goal,
+          runDir: runDirectories.root,
+          logEntry: entry,
+        }),
+    });
+    const filesystemAdapter = new FilesystemAdapter(this.config, logger);
+
+    try {
+      await observe?.({
+        kind: "run-started",
+        workflow: "directory-copy",
+        goal: options.goal,
+        runDir: runDirectories.root,
+      });
+      await logger.info("Starting directory copy workflow", options);
+      const result = await runCopyFolderWorkflow({
+        filesystemAdapter,
+        logger,
+        runDirectories,
+        options,
+        observe,
+        signal,
+      });
+      await observe?.({
+        kind: "run-completed",
+        workflow: "directory-copy",
+        goal: options.goal,
+        runDir: runDirectories.root,
+        summary: result.summary,
+      });
+      return result;
+    } catch (error) {
+      await observe?.({
+        kind: "run-failed",
+        workflow: "directory-copy",
         goal: options.goal,
         runDir: runDirectories.root,
         error: error instanceof Error ? error.message : String(error),

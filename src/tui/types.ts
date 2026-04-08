@@ -12,6 +12,7 @@ export type TuiPanelView = "browser" | "runs" | "logs" | "config";
 export type TuiActionId =
   | "tabs"
   | "folder"
+  | "directory-copy"
   | "page-export"
   | "instagram-audit"
   | "launch-browser"
@@ -97,7 +98,7 @@ export interface TuiWorkflowExecutionResult {
 }
 
 export interface TuiConfirmationState {
-  type: "folder-submit" | "abort-run";
+  type: "workflow-submit" | "abort-run";
   title: string;
   message: string;
   details: string[];

@@ -130,6 +130,12 @@ export interface CompileFolderOptions {
   limit?: number;
 }
 
+export interface CopyFolderOptions {
+  goal: string;
+  folderPath: string;
+  format: "md" | "txt" | "both";
+}
+
 export interface ExportCurrentPageOptions {
   goal: string;
   mode?: string;
@@ -243,6 +249,26 @@ export interface FileCandidate {
   extension: string;
   modifiedTimeMs: number;
   size: number;
+}
+
+export interface DirectoryCopyEntry {
+  path: string;
+  relativePath: string;
+  name: string;
+  extension: string;
+  modifiedTime: string;
+  size: number;
+  content: string;
+  contentKind: "text" | "skipped" | "error";
+  note?: string;
+}
+
+export interface DirectoryCopyBundle {
+  rootPath: string;
+  entries: DirectoryCopyEntry[];
+  totalFiles: number;
+  includedFiles: number;
+  skippedFiles: number;
 }
 
 export interface InstagramAccount {

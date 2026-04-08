@@ -44,12 +44,33 @@ program
   .option("--config <path>", "Path to a Contextor config file")
   .action(async (folderPath, options) => {
     const orchestrator = await ContextorOrchestrator.create(process.cwd(), options.config);
-    const progress = createFolderProgressReporter();
+    const progress = createWorkflowProgressReporter();
     const result = await orchestrator.compileFolder(
       {
         goal: options.goal,
         folderPath,
         limit: parseFolderLimit(options.limit),
+      },
+      progress,
+    );
+    printResult(result);
+  });
+
+program
+  .command("copy-folder")
+  .description("Export a literal directory copy into aggregated markdown and text files")
+  .argument("<folderPath>", "Absolute or relative path to the folder")
+  .option("--goal <goal>", "Goal string for directory copy context", "create a literal directory copy for downstream review")
+  .option("--format <format>", "Requested primary output format: md, txt, or both", "both")
+  .option("--config <path>", "Path to a Contextor config file")
+  .action(async (folderPath, options) => {
+    const orchestrator = await ContextorOrchestrator.create(process.cwd(), options.config);
+    const progress = createWorkflowProgressReporter();
+    const result = await orchestrator.copyFolder(
+      {
+        goal: options.goal,
+        folderPath,
+        format: parseCopyFormat(options.format),
       },
       progress,
     );
@@ -187,7 +208,7 @@ program
   .description("Deprecated alias for the terminal TUI")
   .option("--config <path>", "Path to a Contextor config file")
   .action(async (options) => {
-    console.error("`contextor gui` is deprecated in v0.2.1. Launching the terminal TUI instead.");
+    console.error("`contextor gui` is deprecated in v0.2.2. Launching the terminal TUI instead.");
     const { startTui } = await import("../tui/index");
     await startTui({
       projectRoot: process.cwd(),
@@ -230,7 +251,16 @@ function parseFolderLimit(value: string | undefined): number | undefined {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 }
 
-function createFolderProgressReporter(): (event: RunEvent) => void {
+function parseCopyFormat(value: string | undefined): "md" | "txt" | "both" {
+  const normalized = value?.trim().toLowerCase();
+  if (normalized === "md" || normalized === "txt") {
+    return normalized;
+  }
+
+  return "both";
+}
+
+function createWorkflowProgressReporter(): (event: RunEvent) => void {
   let active = false;
 
   return (event: RunEvent): void => {
