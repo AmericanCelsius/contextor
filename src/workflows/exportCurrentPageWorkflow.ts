@@ -16,11 +16,12 @@ export async function runExportCurrentPageWorkflow(input: {
     {
       preferredMode: input.options.mode,
       includePdf: true,
+      requireAttachedSession: true,
     },
   );
 
   if (browserSources.length === 0) {
-    throw new Error("No current browser page was available for export.");
+    throw new Error(await input.browserAdapter.describeSelectionFailure({ current: true }));
   }
 
   const source = browserSources[0]!;

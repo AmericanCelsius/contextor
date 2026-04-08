@@ -2,18 +2,20 @@ import { BrowserAdapter } from "../adapters/browserAdapter";
 import { FilesystemAdapter } from "../adapters/filesystemAdapter";
 import { ContextCompiler } from "../compiler/contextCompiler";
 import { loadConfig } from "./config";
-import { RunLogger } from "./logger";
+import { NullLogger, RunLogger } from "./logger";
 import {
+  BrowserConnectionDiagnostics,
   CompileFolderOptions,
   CompileGoalOptions,
   CompileTabsOptions,
   ContextorConfig,
   ExportCurrentPageOptions,
+  LatestLogSummary,
   RecentRunSummary,
   SocialAuditOptions,
   WorkflowResult,
 } from "./types";
-import { createRunDirectories, listRecentRuns } from "../utils/files";
+import { createRunDirectories, listRecentRuns, readLogTail } from "../utils/files";
 import { runCompileFolderWorkflow } from "../workflows/compileFolderWorkflow";
 import { runCompileTabsWorkflow } from "../workflows/compileTabsWorkflow";
 import { runExportCurrentPageWorkflow } from "../workflows/exportCurrentPageWorkflow";
@@ -129,7 +131,7 @@ export class ContextorOrchestrator {
                 match: options.match ? new RegExp(options.match, "i") : undefined,
               },
               runDirectories,
-              { includePdf: false },
+              { includePdf: false, requireAttachedSession: true },
             )
           : [];
 
@@ -167,5 +169,32 @@ export class ContextorOrchestrator {
 
   async listRecentRuns(limit = 10): Promise<RecentRunSummary[]> {
     return listRecentRuns(this.config.outputDirectory, limit);
+  }
+
+  async getLatestLogSummary(maxLines = 80): Promise<LatestLogSummary> {
+    const latestRun = (await this.listRecentRuns(1))[0];
+    if (!latestRun?.logPath) {
+      return { lines: [] };
+    }
+
+    return {
+      runDir: latestRun.runDir,
+      logPath: latestRun.logPath,
+      lines: await readLogTail(latestRun.logPath, maxLines),
+    };
+  }
+
+  async inspectBrowser(options: { all?: boolean; current?: boolean; match?: string } = { all: true }): Promise<BrowserConnectionDiagnostics> {
+    const browserAdapter = new BrowserAdapter(this.config, new NullLogger());
+
+    try {
+      return browserAdapter.inspectConnection({
+        all: options.all,
+        current: options.current,
+        match: options.match ? new RegExp(options.match, "i") : undefined,
+      });
+    } finally {
+      await browserAdapter.dispose();
+    }
   }
 }

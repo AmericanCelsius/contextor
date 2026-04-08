@@ -3,6 +3,12 @@ import path from "node:path";
 
 import { RunDirectories } from "./types";
 
+export interface Logger {
+  info(message: string, data?: unknown): Promise<void>;
+  warn(message: string, data?: unknown): Promise<void>;
+  error(message: string, data?: unknown): Promise<void>;
+}
+
 export class RunLogger {
   readonly logPath: string;
 
@@ -33,4 +39,12 @@ export class RunLogger {
     this.lines.push(line);
     await fs.appendFile(this.logPath, `${line}\n`, "utf8");
   }
+}
+
+export class NullLogger implements Logger {
+  async info(): Promise<void> {}
+
+  async warn(): Promise<void> {}
+
+  async error(): Promise<void> {}
 }

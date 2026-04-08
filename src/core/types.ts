@@ -64,6 +64,12 @@ export interface WorkflowResult extends ContextCompileResult {
   summary: string;
 }
 
+export interface LatestLogSummary {
+  runDir?: string;
+  logPath?: string;
+  lines: string[];
+}
+
 export interface CompileTabsOptions {
   goal: string;
   all?: boolean;
@@ -156,6 +162,29 @@ export interface PageSelection {
   current?: boolean;
   all?: boolean;
   match?: RegExp;
+}
+
+export interface BrowserPageSummary {
+  title: string;
+  url: string;
+  type: string;
+}
+
+export interface BrowserConnectionDiagnostics {
+  attachUrl: string;
+  browserMode: BrowserConfig["mode"];
+  endpointReachable: boolean;
+  attached: boolean;
+  source: "cdp" | "launch" | "unavailable";
+  launchedFallback: boolean;
+  attachError?: string;
+  totalTargets: number;
+  usableTargets: number;
+  matchingTargets: number;
+  selectionLabel: string;
+  pages: BrowserPageSummary[];
+  issues: string[];
+  suggestions: string[];
 }
 
 export interface FileCandidate {

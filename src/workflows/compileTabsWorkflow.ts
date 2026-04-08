@@ -18,9 +18,10 @@ export async function runCompileTabsWorkflow(input: {
 
   const browserSources = await input.browserAdapter.capturePages(selection, input.runDirectories, {
     includePdf: false,
+    requireAttachedSession: true,
   });
   if (browserSources.length === 0) {
-    throw new Error("No browser tabs matched the requested selection.");
+    throw new Error(await input.browserAdapter.describeSelectionFailure(selection));
   }
 
   const communicationNotes = browserSources

@@ -18,7 +18,10 @@ export async function runInstagramAuditWorkflow(input: {
   options: SocialAuditOptions;
   enabledStrategies: string[];
 }): Promise<WorkflowResult> {
-  const instagramPages = await input.browserAdapter.selectPages({ all: true, match: /instagram\.com/i });
+  const instagramPages = await input.browserAdapter.selectPages(
+    { all: true, match: /instagram\.com/i },
+    { requireAttachedSession: true },
+  );
   if (instagramPages.length === 0) {
     throw new Error("No Instagram tabs were found. Open Instagram follower/following views in Chrome first.");
   }

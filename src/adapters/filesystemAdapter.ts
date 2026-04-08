@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { RunLogger } from "../core/logger";
+import { Logger } from "../core/logger";
 import { scoreFileCandidate, suppressDuplicateCandidates } from "../core/relevance";
 import { ContextorConfig, FileCandidate, FileSource } from "../core/types";
 import { isWithinDirectory, pathExists } from "../utils/files";
@@ -12,7 +12,7 @@ const SUPPORTED_EXTENSIONS = new Set([".txt", ".md", ".pdf", ".json", ".csv", ".
 export class FilesystemAdapter {
   constructor(
     private readonly config: ContextorConfig,
-    private readonly logger: RunLogger,
+    private readonly logger: Logger,
   ) {}
 
   async compileDirectory(folderPath: string, goal: string, limit = 15): Promise<FileSource[]> {

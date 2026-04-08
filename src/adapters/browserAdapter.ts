@@ -4,9 +4,16 @@ import path from "node:path";
 import { Browser, BrowserContext, Page, chromium } from "playwright-core";
 import TurndownService from "turndown";
 
-import { RunLogger } from "../core/logger";
+import { Logger } from "../core/logger";
 import { applyRedactions } from "../core/redaction";
-import { BrowserSource, ContextorConfig, PageSelection, RunDirectories } from "../core/types";
+import {
+  BrowserConnectionDiagnostics,
+  BrowserPageSummary,
+  BrowserSource,
+  ContextorConfig,
+  PageSelection,
+  RunDirectories,
+} from "../core/types";
 import { detectInstalledBrowserExecutable, ensureDirectory, safeArtifactName } from "../utils/files";
 import { extractKeyPoints, summarizeText, truncate } from "../utils/text";
 import { resolveStrategy } from "../strategies/registry";
@@ -18,6 +25,10 @@ interface BrowserSession {
   context?: BrowserContext;
 }
 
+interface ConnectionOptions {
+  requireAttachedSession?: boolean;
+}
+
 export class BrowserAdapter {
   private readonly turndown = new TurndownService({ codeBlockStyle: "fenced", headingStyle: "atx" });
 
@@ -25,11 +36,14 @@ export class BrowserAdapter {
 
   constructor(
     private readonly config: ContextorConfig,
-    private readonly logger: RunLogger,
+    private readonly logger: Logger,
   ) {}
 
-  async listTabs(selection: PageSelection = { current: true }): Promise<Array<{ title: string; url: string }>> {
-    const pages = await this.selectPages(selection);
+  async listTabs(
+    selection: PageSelection = { current: true },
+    connectionOptions: ConnectionOptions = {},
+  ): Promise<Array<{ title: string; url: string }>> {
+    const pages = await this.selectPages(selection, connectionOptions);
     return Promise.all(
       pages.map(async (page) => ({
         title: await this.getSafeTitle(page),
@@ -38,8 +52,81 @@ export class BrowserAdapter {
     );
   }
 
-  async selectPages(selection: PageSelection = { current: true }): Promise<Page[]> {
-    const pages = await this.getAllPages();
+  async inspectConnection(selection: PageSelection = { all: true }): Promise<BrowserConnectionDiagnostics> {
+    const selectionLabel = formatSelectionLabel(selection);
+    const pageTargets = await this.fetchAttachTargets();
+    const diagnostics: BrowserConnectionDiagnostics = {
+      attachUrl: this.config.browser.attachUrl,
+      browserMode: this.config.browser.mode,
+      endpointReachable: pageTargets !== null,
+      attached: pageTargets !== null,
+      source: pageTargets ? "cdp" : "unavailable",
+      launchedFallback: false,
+      totalTargets: pageTargets?.length ?? 0,
+      usableTargets: 0,
+      matchingTargets: 0,
+      selectionLabel,
+      pages: [],
+      issues: [],
+      suggestions: [],
+    };
+
+    if (!pageTargets) {
+      diagnostics.attachError = `Contextor could not reach Chrome at ${this.config.browser.attachUrl}.`;
+      diagnostics.issues.push("Chrome remote debugging endpoint is unavailable.");
+      diagnostics.suggestions.push(
+        'Launch the browser instance you want Contextor to inspect with --remote-debugging-port=9222.',
+      );
+      diagnostics.suggestions.push(
+        "Open-tab workflows do not use the attach-or-launch fallback because a fresh automation profile does not contain your existing tabs.",
+      );
+      return diagnostics;
+    }
+
+    const usableTargets = pageTargets.filter((target) => isUsablePage(target.url));
+    const matchingTargets = filterTargetSummaries(usableTargets, selection);
+
+    diagnostics.usableTargets = usableTargets.length;
+    diagnostics.matchingTargets = matchingTargets.length;
+    diagnostics.pages = usableTargets.slice(0, 8);
+
+    if (usableTargets.length === 0) {
+      diagnostics.issues.push("Chrome is reachable, but no regular page targets are open.");
+      diagnostics.suggestions.push("Open one or more tabs in the attached Chrome session and retry.");
+    }
+
+    if (selection.match && matchingTargets.length === 0) {
+      diagnostics.issues.push(`No reachable tabs matched /${selection.match.source}/i.`);
+      diagnostics.suggestions.push("Adjust the match pattern or inspect the browser status panel for the current tab titles.");
+    }
+
+    return diagnostics;
+  }
+
+  async describeSelectionFailure(selection: PageSelection = { current: true }): Promise<string> {
+    const diagnostics = await this.inspectConnection(selection);
+
+    if (!diagnostics.endpointReachable) {
+      return `${diagnostics.attachError} Start Chrome with --remote-debugging-port=9222 and retry.`;
+    }
+
+    if (diagnostics.usableTargets === 0) {
+      return "Contextor reached Chrome, but the debugging endpoint did not expose any usable page tabs.";
+    }
+
+    if (selection.match && diagnostics.matchingTargets === 0) {
+      const samples = diagnostics.pages
+        .slice(0, 4)
+        .map((page) => page.title || page.url)
+        .join("; ");
+      return `Contextor attached to Chrome, but no tabs matched /${selection.match.source}/i. Sample attached tabs: ${samples || "none"}.`;
+    }
+
+    return `Contextor attached to Chrome at ${diagnostics.attachUrl}, but no tabs matched the ${diagnostics.selectionLabel} selection.`;
+  }
+
+  async selectPages(selection: PageSelection = { current: true }, connectionOptions: ConnectionOptions = {}): Promise<Page[]> {
+    const pages = await this.getAllPages(connectionOptions);
     const filtered = pages.filter((page) => isUsablePage(page.url()));
 
     if (selection.match) {
@@ -61,9 +148,11 @@ export class BrowserAdapter {
   async capturePages(
     selection: PageSelection,
     runDirectories: RunDirectories,
-    options: { preferredMode?: string; includePdf?: boolean },
+    options: { preferredMode?: string; includePdf?: boolean; requireAttachedSession?: boolean },
   ): Promise<BrowserSource[]> {
-    const pages = await this.selectPages(selection);
+    const pages = await this.selectPages(selection, {
+      requireAttachedSession: options.requireAttachedSession,
+    });
     const sources: BrowserSource[] = [];
 
     for (const page of pages) {
@@ -222,7 +311,7 @@ export class BrowserAdapter {
     }
   }
 
-  private async ensureConnected(): Promise<BrowserSession> {
+  private async ensureConnected(connectionOptions: ConnectionOptions = {}): Promise<BrowserSession> {
     if (this.session) {
       return this.session;
     }
@@ -243,12 +332,16 @@ export class BrowserAdapter {
           error: error instanceof Error ? error.message : String(error),
         });
 
-        if (browserMode === "attach-only") {
-          throw new Error(
-            `Failed to attach to Chrome at ${this.config.browser.attachUrl}. Start Chrome with --remote-debugging-port=9222 or switch browser.mode.`,
-          );
+        if (browserMode === "attach-only" || connectionOptions.requireAttachedSession) {
+          throw new Error(this.buildAttachFailureMessage(error));
         }
       }
+    }
+
+    if (connectionOptions.requireAttachedSession && browserMode === "launch-only") {
+      throw new Error(
+        "Contextor is configured with browser.mode=launch-only, which cannot inspect the tabs already open in your Chrome session.",
+      );
     }
 
     const executablePath = this.config.browser.executablePath ?? (await detectInstalledBrowserExecutable());
@@ -274,8 +367,8 @@ export class BrowserAdapter {
     return this.session;
   }
 
-  private async getAllPages(): Promise<Page[]> {
-    const session = await this.ensureConnected();
+  private async getAllPages(connectionOptions: ConnectionOptions = {}): Promise<Page[]> {
+    const session = await this.ensureConnected(connectionOptions);
     const contexts =
       session.source === "launch"
         ? session.context
@@ -396,6 +489,29 @@ export class BrowserAdapter {
       return 0;
     }
   }
+
+  private async fetchAttachTargets(): Promise<BrowserPageSummary[] | null> {
+    try {
+      const response = await fetch(buildAttachUrl(this.config.browser.attachUrl, "/json/list"));
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const payload = (await response.json()) as Array<Record<string, unknown>>;
+      return payload.map((item) => ({
+        title: String(item.title ?? ""),
+        url: String(item.url ?? ""),
+        type: String(item.type ?? "unknown"),
+      }));
+    } catch {
+      return null;
+    }
+  }
+
+  private buildAttachFailureMessage(error: unknown): string {
+    const details = error instanceof Error ? error.message : String(error);
+    return `Failed to attach to Chrome at ${this.config.browser.attachUrl}. Start the browser you want Contextor to inspect with --remote-debugging-port=9222. Details: ${details}`;
+  }
 }
 
 function isUsablePage(url: string): boolean {
@@ -413,6 +529,39 @@ async function filterPagesByPattern(pages: Page[], pattern: RegExp): Promise<Pag
   }
 
   return matching;
+}
+
+function filterTargetSummaries(targets: BrowserPageSummary[], selection: PageSelection): BrowserPageSummary[] {
+  if (selection.match) {
+    return targets.filter((target) => selection.match?.test(`${target.url} ${target.title}`));
+  }
+
+  if (selection.all) {
+    return targets;
+  }
+
+  if (selection.current) {
+    return targets.slice(0, 1);
+  }
+
+  return targets;
+}
+
+function buildAttachUrl(baseUrl: string, pathname: string): string {
+  const normalizedBase = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
+  return new URL(pathname.replace(/^\//, ""), normalizedBase).toString();
+}
+
+function formatSelectionLabel(selection: PageSelection): string {
+  if (selection.match) {
+    return `match pattern /${selection.match.source}/i`;
+  }
+
+  if (selection.all) {
+    return "all tabs";
+  }
+
+  return "current tab";
 }
 
 function escapeRegExp(value: string): string {
