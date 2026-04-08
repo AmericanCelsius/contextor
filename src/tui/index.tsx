@@ -2,6 +2,7 @@ import React from "react";
 import { render } from "ink";
 
 import { ContextorOrchestrator } from "../core/orchestrator";
+import { clearTerminalViewport } from "../utils/system";
 import { ContextorTuiApp } from "./app";
 
 interface StartTuiOptions {
@@ -27,6 +28,7 @@ export async function startTui(options: StartTuiOptions): Promise<void> {
 
 function enterAlternateScreen(): () => void {
   process.stdout.write("\u001B[?1049h\u001B[?25l");
+  clearTerminalViewport();
   return () => {
     process.stdout.write("\u001B[?25h\u001B[?1049l");
   };

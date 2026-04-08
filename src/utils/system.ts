@@ -41,6 +41,10 @@ export function clearTerminalScreen(): void {
   process.stdout.write("\u001Bc\u001B[2J\u001B[3J\u001B[H");
 }
 
+export function clearTerminalViewport(): void {
+  process.stdout.write("\u001B[2J\u001B[3J\u001B[H");
+}
+
 export async function getRecommendedFolderPaths(
   allowedDirectories: string[],
   cwd = process.cwd(),

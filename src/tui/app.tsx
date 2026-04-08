@@ -4,7 +4,7 @@ import { Box, Text, useApp, useInput } from "ink";
 import { ContextorOrchestrator } from "../core/orchestrator";
 import { CONTEXTOR_VERSION } from "../core/version";
 import { BrowserPageSummary, RunEvent, WorkflowResult } from "../core/types";
-import { getRecommendedFolderPaths } from "../utils/system";
+import { clearTerminalViewport, getRecommendedFolderPaths } from "../utils/system";
 import { TUI_ACTIONS } from "./actions";
 import { completeFolderPath, executeWorkflow, getFolderPathStatus, loadDashboardSnapshot } from "./controller";
 import { ActionMenu, BootSplash, ConfirmQuitPane, FooterBar, FormPane, InfoPane, QuitSplash, WorkspacePane } from "./components";
@@ -70,6 +70,12 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
     const hideTimer = setTimeout(() => setBootVisible(false), 1600);
     return () => clearTimeout(hideTimer);
   }, []);
+
+  useEffect(() => {
+    if (!bootVisible) {
+      clearTerminalViewport();
+    }
+  }, [bootVisible]);
 
   useEffect(() => {
     if (!quitting) {
@@ -530,7 +536,7 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
       return;
     }
 
-    if (key.backspace) {
+    if (isBackspaceKey(input, key)) {
       if (activeTextCursorIndex === 0) {
         return;
       }
@@ -542,7 +548,7 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
       return;
     }
 
-    if (key.delete) {
+    if (isForwardDeleteKey(input, key)) {
       const nextValue =
         currentField.value.slice(0, activeTextCursorIndex) + currentField.value.slice(activeTextCursorIndex + 1);
       updateField(currentField.id, nextValue);
@@ -924,6 +930,12 @@ function describeInput(
     delete?: boolean;
   },
 ): string {
+  if (isBackspaceKey(input, key)) {
+    return "Backspace";
+  }
+  if (isForwardDeleteKey(input, key)) {
+    return "Delete";
+  }
   if (key.upArrow) {
     return "Up";
   }
@@ -962,6 +974,25 @@ function describeInput(
   }
 
   return "";
+}
+
+function isBackspaceKey(
+  input: string,
+  key: {
+    backspace?: boolean;
+    delete?: boolean;
+  },
+): boolean {
+  return key.backspace === true || input === "\u007f" || input === "\u0008";
+}
+
+function isForwardDeleteKey(
+  input: string,
+  key: {
+    delete?: boolean;
+  },
+): boolean {
+  return key.delete === true && input !== "\u007f" && input !== "\u0008";
 }
 
 function nextPanelView(current: TuiPanelView, delta: number): TuiPanelView {
