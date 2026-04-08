@@ -1,34 +1,39 @@
 {
   "name": "contextor",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
+  "type": "module",
   "description": "Local-first context aggregation and browser automation toolkit.",
   "bin": {
     "contextor": "dist/cli/index.js"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json && mkdir -p dist/gui && cp -R src/gui/public dist/gui/public",
+    "build": "tsup",
     "typecheck": "tsc --noEmit",
     "cli": "tsx src/cli/index.ts",
-    "gui": "tsx src/gui/server.ts",
-    "start": "node dist/gui/server.js",
+    "tui": "tsx src/cli/index.ts tui",
+    "gui": "tsx src/cli/index.ts tui",
+    "start": "node dist/cli/index.js tui",
     "smoke:folder": "node dist/cli/index.js folder ./docs --goal \"summarize the documentation in this repository\""
   },
   "engines": {
     "node": ">=20"
   },
   "dependencies": {
+    "@inkjs/ui": "^2.0.0",
     "commander": "^14.0.0",
-    "express": "^5.1.0",
+    "ink": "^6.8.0",
     "mammoth": "^1.9.1",
     "pdf-parse": "^1.1.1",
     "playwright-core": "^1.54.1",
+    "react": "^19.2.0",
     "turndown": "^7.2.0"
   },
   "devDependencies": {
-    "@types/express": "^5.0.3",
     "@types/node": "^24.6.0",
+    "@types/react": "^19.2.2",
     "@types/turndown": "^5.0.5",
+    "tsup": "^8.5.0",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3"
   }

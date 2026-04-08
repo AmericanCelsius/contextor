@@ -1,22 +1,23 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "CommonJS",
-    "moduleResolution": "Node",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
     "rootDir": "src",
-    "outDir": "dist",
     "strict": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "noUncheckedIndexedAccess": true,
+    "jsx": "react-jsx",
     "types": [
       "node"
     ]
   },
   "include": [
     "src/**/*.ts",
+    "src/**/*.tsx",
     "src/**/*.d.ts"
   ],
   "exclude": [

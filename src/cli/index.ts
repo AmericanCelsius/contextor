@@ -2,6 +2,7 @@
 import { Command } from "commander";
 
 import { ContextorOrchestrator } from "../core/orchestrator";
+import { CONTEXTOR_VERSION } from "../core/version";
 import { WorkflowResult } from "../core/types";
 
 const program = new Command();
@@ -9,7 +10,7 @@ const program = new Command();
 program
   .name("contextor")
   .description("Local-first context aggregation and browser automation.")
-  .version("0.1.0");
+  .version(CONTEXTOR_VERSION);
 
 program
   .command("tabs")
@@ -117,28 +118,53 @@ program
   });
 
 program
-  .command("gui")
-  .description("Start the local Contextor dashboard")
-  .option("--port <port>", "Port for the local dashboard", "4317")
-  .option("--host <host>", "Host for the local dashboard", "127.0.0.1")
+  .command("browser-status")
+  .description("Inspect Chrome remote debugging availability and visible tabs")
   .option("--config <path>", "Path to a Contextor config file")
   .action(async (options) => {
-    const { startGuiServer } = await import("../gui/server");
-    const server = await startGuiServer({
+    const orchestrator = await ContextorOrchestrator.create(process.cwd(), options.config);
+    const diagnostics = await orchestrator.inspectBrowser({ all: true });
+    console.log(`Attach URL: ${diagnostics.attachUrl}`);
+    console.log(`Mode: ${diagnostics.browserMode}`);
+    console.log(`Endpoint reachable: ${diagnostics.endpointReachable}`);
+    console.log(`Usable tabs: ${diagnostics.usableTargets}/${diagnostics.totalTargets}`);
+    if (diagnostics.issues.length > 0) {
+      console.log("Issues:");
+      for (const issue of diagnostics.issues) {
+        console.log(`- ${issue}`);
+      }
+    }
+    if (diagnostics.pages.length > 0) {
+      console.log("Sample tabs:");
+      for (const page of diagnostics.pages) {
+        console.log(`- ${page.title || page.url}`);
+      }
+    }
+  });
+
+program
+  .command("tui")
+  .alias("dashboard")
+  .description("Launch the terminal-contained Contextor dashboard")
+  .option("--config <path>", "Path to a Contextor config file")
+  .action(async (options) => {
+    const { startTui } = await import("../tui/index");
+    await startTui({
       projectRoot: process.cwd(),
       configPath: options.config,
-      port: Number(options.port),
-      host: options.host,
     });
+  });
 
-    console.log(`Contextor GUI available at http://${server.host}:${server.port}`);
-    await new Promise<void>((resolve) => {
-      const shutdown = () => {
-        server.server.close(() => resolve());
-      };
-
-      process.once("SIGINT", shutdown);
-      process.once("SIGTERM", shutdown);
+program
+  .command("gui")
+  .description("Deprecated alias for the terminal TUI")
+  .option("--config <path>", "Path to a Contextor config file")
+  .action(async (options) => {
+    console.error("`contextor gui` is deprecated in v0.2.0. Launching the terminal TUI instead.");
+    const { startTui } = await import("../tui/index");
+    await startTui({
+      projectRoot: process.cwd(),
+      configPath: options.config,
     });
   });
 

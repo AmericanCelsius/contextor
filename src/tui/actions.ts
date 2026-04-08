@@ -1,0 +1,141 @@
+import { TuiAction } from "./types";
+
+export const TUI_ACTIONS: TuiAction[] = [
+  {
+    id: "tabs",
+    label: "Compile Open Tabs",
+    shortLabel: "tabs",
+    description: "Capture the current Chrome/Chromium tab set into one context bundle.",
+    formTitle: "Compile Open Tabs",
+    submitLabel: "Run Tabs Compile",
+    createFields: () => [
+      {
+        id: "scope",
+        label: "Scope",
+        type: "select",
+        value: "all",
+        options: [
+          { label: "All tabs", value: "all" },
+          { label: "Current tab", value: "current" },
+          { label: "Regex match", value: "match" },
+        ],
+        hint: "Use left/right to change scope.",
+      },
+      {
+        id: "goal",
+        label: "Goal",
+        type: "text",
+        value: "summarize my current browser context",
+      },
+      {
+        id: "match",
+        label: "Match Regex",
+        type: "text",
+        value: "",
+        placeholder: "brightspace|gradescope|edstem",
+        hint: "Used only when Scope is Regex match.",
+      },
+    ],
+  },
+  {
+    id: "folder",
+    label: "Compile Folder",
+    shortLabel: "folder",
+    description: "Scan an allowed folder, rank the files, and compile a dense context bundle.",
+    formTitle: "Compile Folder",
+    submitLabel: "Run Folder Compile",
+    createFields: () => [
+      {
+        id: "folderPath",
+        label: "Folder Path",
+        type: "text",
+        value: "",
+        placeholder: "/absolute/path/to/folder",
+      },
+      {
+        id: "goal",
+        label: "Goal",
+        type: "text",
+        value: "summarize this project folder",
+      },
+      {
+        id: "limit",
+        label: "File Limit",
+        type: "text",
+        value: "15",
+        hint: "Highest-signal files to include.",
+      },
+    ],
+  },
+  {
+    id: "page-export",
+    label: "Export Current Page",
+    shortLabel: "page",
+    description: "Expand the current page and export markdown, text, and PDF artifacts.",
+    formTitle: "Export Current Page",
+    submitLabel: "Run Page Export",
+    createFields: () => [
+      {
+        id: "mode",
+        label: "Mode",
+        type: "select",
+        value: "linkedin",
+        options: [
+          { label: "LinkedIn", value: "linkedin" },
+          { label: "Generic", value: "generic" },
+          { label: "Portal", value: "portal" },
+          { label: "Gmail", value: "gmail" },
+        ],
+      },
+      {
+        id: "goal",
+        label: "Goal",
+        type: "text",
+        value: "export this current page for downstream LLM use",
+      },
+    ],
+  },
+  {
+    id: "instagram-audit",
+    label: "Instagram Non-Mutuals Audit",
+    shortLabel: "audit",
+    description: "Read follower/following views from the attached browser and export a review-only audit.",
+    formTitle: "Instagram Audit",
+    submitLabel: "Run Read-Only Audit",
+    createFields: () => [
+      {
+        id: "goal",
+        label: "Goal",
+        type: "text",
+        value: "review likely Instagram non-mutual accounts in read-only mode",
+      },
+    ],
+  },
+  {
+    id: "open-output",
+    label: "Open Latest Output Folder",
+    shortLabel: "output",
+    description: "Open the most recent output bundle in the OS file browser.",
+  },
+  {
+    id: "view-logs",
+    label: "View Latest Logs",
+    shortLabel: "logs",
+    description: "Focus the latest log tail panel.",
+    panelView: "logs",
+  },
+  {
+    id: "view-runs",
+    label: "View Recent Runs",
+    shortLabel: "runs",
+    description: "Focus the recent runs panel.",
+    panelView: "runs",
+  },
+  {
+    id: "view-config",
+    label: "View Current Config Summary",
+    shortLabel: "config",
+    description: "Focus the current configuration summary panel.",
+    panelView: "config",
+  },
+];
