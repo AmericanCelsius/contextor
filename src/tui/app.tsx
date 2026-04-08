@@ -983,7 +983,7 @@ function isBackspaceKey(
     delete?: boolean;
   },
 ): boolean {
-  return key.backspace === true || input === "\u007f" || input === "\u0008";
+  return key.backspace === true || input === "\u007f" || input === "\u0008" || (key.delete === true && !isForwardDeleteKey(input, key));
 }
 
 function isForwardDeleteKey(
@@ -992,7 +992,7 @@ function isForwardDeleteKey(
     delete?: boolean;
   },
 ): boolean {
-  return key.delete === true && input !== "\u007f" && input !== "\u0008";
+  return key.delete === true && (input === "\u001b[3~" || input === "\u001b[3;5~");
 }
 
 function nextPanelView(current: TuiPanelView, delta: number): TuiPanelView {
