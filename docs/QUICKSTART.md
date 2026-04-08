@@ -75,7 +75,7 @@ contextor copy-folder "/absolute/path/to/folder" --goal "create a literal direct
 
 Literal directory copy notes:
 
-- this is separate from `Compile Folder`
+- this is separate from `Summarize Folder Context` in the TUI
 - it reuses the same path autocomplete and confirmation flow as the summarizer
 - it writes aggregated file bodies to root `context.md` and `context.txt`
 - while the workflow is running, press `x` to open the abort prompt

@@ -10,6 +10,7 @@ Contextor is designed to become a serious **browser-first, debuggable, terminal-
 
 ## Table of Contents
 
+- [Changelog](#changelog)
 - [What Contextor Is](#what-contextor-is)
 - [Why Contextor Exists](#why-contextor-exists)
 - [Current Product State](#current-product-state)
@@ -27,6 +28,12 @@ Contextor is designed to become a serious **browser-first, debuggable, terminal-
 - [Roadmap](#roadmap)
 - [Install and Run](#install-and-run)
 - [Final Positioning](#final-positioning)
+
+---
+
+## Changelog
+
+For a lightweight iteration-by-iteration development log, see [CHANGELOG.md](/Users/david/Desktop/Agents%20&%20Automation/contextor/CHANGELOG.md).
 
 ---
 
@@ -180,8 +187,8 @@ The left panel lists the main available actions.
 This is the main action menu and currently includes entries such as:
 - Compile Open Tabs
 - Prompt Console
-- Compile Folder
-- Copy Folder As Markdown/Text
+- Summarize Folder Context
+- Export Literal Folder Copy
 - Export Current Page
 - Launch Chrome Debug Browser
 - Open Output Runs Folder

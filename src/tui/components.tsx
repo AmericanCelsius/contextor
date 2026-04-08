@@ -19,47 +19,57 @@ import {
 
 const SCAN_FRAMES = ["[>....]", "[=>...]", "[==>..]", "[===>.]", "[====>]", "[.====]"];
 const SIGNAL_FRAMES = ["●○○", "●●○", "●●●", "○●●"];
+const CORNER_BADGE_FRAMES = [
+  [" .--------------------. ", " | CONTEXTOR // READY | ", " '--------------------' "],
+  [" .--------------------. ", " | CONTEXTOR // SCAN> | ", " '--------------------' "],
+  [" .--------------------. ", " | CONTEXTOR // LINK~ | ", " '--------------------' "],
+  [" .--------------------. ", " | CONTEXTOR // LIVE* | ", " '--------------------' "],
+];
+const BOOT_LOGO_WIDE = [
+  "   _________  _   _ _______ _______ _______ _     _ _______  ______ ",
+  "  / ___/ __ \\| \\ | |_   _|  ____|__   __| |   | |/ /__   __|/ __ \\",
+  " / /__/ /_/ /|  \\| | | | | |__     | |  | |   | ' /   | |  | |  | |",
+  " \\___/\\____/ | . ` | | | |  __|    | |  | |   |  <    | |  | |  | |",
+  " ___/ /      | |\\  |_| |_| |____   | |  | |___| . \\   | |  | |__| |",
+  "/____/       |_| \\_|_____|______|  |_|  |_____|_|\\_\\  |_|   \\____/ ",
+];
+const BOOT_LOGO_COMPACT = [
+  "  ____ ___  _   _ _____ _____ ____  _____ ___  ____  ",
+  " / ___/ _ \\| \\ | |_   _| ____|  _ \\|_   _/ _ \\|  _ \\ ",
+  "| |  | | | |  \\| | | | |  _| | |_) | | || | | | |_) |",
+  "| |__| |_| | |\\  | | | | |___|  _ <  | || |_| |  _ < ",
+  " \\____\\___/|_| \\_| |_| |_____|_| \\_\\ |_| \\___/|_| \\_\\",
+];
+const BOOT_LOGO_MINI = ["  CONTEXTOR  ", "  terminal context console  "];
 
 export function BootSplash({ tick }: { tick: number }): React.JSX.Element {
   const terminalWidth = process.stdout.columns ?? 120;
-  const frame = tick % 2;
   const beacon = SCAN_FRAMES[tick % SCAN_FRAMES.length]!;
-  const stars = frame === 0 ? "·  *   ·  *" : "*  ·   *  ·";
-  const art =
-    terminalWidth < 76
-      ? ["  CONTEXTOR  ", "  terminal context console  "]
-      : frame === 0
-      ? [
-          "   ______            __            __            ",
-          "  / ____/___  ____  / /____  _  __/ /_____  _____",
-          " / /   / __ \\/ __ \\/ __/ _ \\| |/_/ __/ __ \\/ ___/",
-          "/ /___/ /_/ / / / / /_/  __/>  </ /_/ /_/ / /    ",
-          "\\____/\\____/_/ /_/\\__/\\___/_/|_|\\__/\\____/_/     ",
-        ]
-      : [
-          "  _____ ____  _   _ _____ _____ _____ _____ ____  ",
-          " / ____/ __ \\| \\ | |_   _/ ____|_   _/ ____/ __ \\ ",
-          "| |   | |  | |  \\| | | || |      | || |   | |  | |",
-          "| |   | |  | | . ` | | || |      | || |   | |  | |",
-          "| |___| |__| | |\\  |_| || |____ _| || |___| |__| |",
-          " \\_____\\____/|_| \\_|_____\\_____|_____\\_____\\____/ ",
-        ];
+  const sparkle = tick % 2 === 0 ? "<>   <>   <>" : "><   ><   ><";
+  const art = terminalWidth < 72 ? BOOT_LOGO_MINI : terminalWidth < 96 ? BOOT_LOGO_COMPACT : BOOT_LOGO_WIDE;
+  const splashWidth = Math.min(
+    Math.max(40, art[0]?.length ? art[0].length + 8 : 40),
+    Math.max(40, terminalWidth - 6),
+  );
 
   return (
     <Box flexDirection="column" alignItems="center" justifyContent="center" height="100%">
-      <Text color={TUI_THEME.accentSoft}>Contextor v{CONTEXTOR_VERSION}</Text>
-      <Text color={TUI_THEME.muted}>{stars}</Text>
-      <Newline />
-      {art.map((line, index) => (
-        <Text key={`${index}-${line}`} color={index % 2 === 0 ? TUI_THEME.accent : TUI_THEME.title}>
-          {line}
-        </Text>
-      ))}
-      <Newline />
-      <Text color={TUI_THEME.text}>Booting mission panels, browser diagnostics, path sensors, and recent runs...</Text>
-      <Text color={TUI_THEME.ok}>
-        {beacon} Terminal animation layer online. Press Enter, Esc, or Space to skip.
-      </Text>
+      <Panel title={`CONTEXTOR v${CONTEXTOR_VERSION}`} active width={splashWidth} minHeight={16}>
+        <Box flexDirection="column" alignItems="center">
+          <Text color={TUI_THEME.muted}>{sparkle}</Text>
+          <Newline />
+          {art.map((line, index) => (
+            <Text key={`${index}-${line}`} color={index % 2 === 0 ? TUI_THEME.accentSoft : TUI_THEME.accent}>
+              {line}
+            </Text>
+          ))}
+          <Newline />
+          <Text color={TUI_THEME.text}>Retro operator shell initializing browser sensors, path scanners, logs, and mission panels.</Text>
+          <Text color={TUI_THEME.ok} inverse>
+            {beacon} Press Enter, Esc, or Space to skip boot.
+          </Text>
+        </Box>
+      </Panel>
     </Box>
   );
 }
@@ -147,17 +157,32 @@ export function ActionMenu(props: {
   selectedIndex: number;
   lastInput?: TuiInputTrace | null;
   width?: number | string;
+  minHeight?: number;
+  tick?: number;
 }): React.JSX.Element {
+  const terminalWidth = process.stdout.columns ?? 120;
+  const terminalRows = process.stdout.rows ?? 40;
+  const detailWidth = terminalWidth < 120 ? 44 : 58;
+  const compactList = terminalRows < 42;
+  const pulseOn = (props.tick ?? 0) % 2 === 0;
+
   return (
-    <Panel title="COMMAND GRID" active width={props.width ?? 34} minHeight={24}>
+    <Panel title="COMMAND GRID" active width={props.width ?? 34} minHeight={props.minHeight ?? 24}>
       {props.actions.map((action, index) => {
         const selected = index === props.selectedIndex;
+        const titleColor = selected
+          ? pulseOn
+            ? TUI_THEME.accentSoft
+            : TUI_THEME.accent
+          : TUI_THEME.title;
         return (
           <Box key={action.id} marginBottom={1} flexDirection="column">
-            <Text color={selected ? TUI_THEME.accentSoft : TUI_THEME.text} inverse={selected}>
+            <Text color={titleColor} inverse={selected && pulseOn} bold={selected}>
               {selected ? ">" : " "} {index + 1}. {action.label}
             </Text>
-            <Text color={TUI_THEME.muted}>   {action.description}</Text>
+            {!compactList || selected ? (
+              <Text color={TUI_THEME.muted}>   {truncate(action.description, detailWidth)}</Text>
+            ) : null}
           </Box>
         );
       })}
@@ -178,6 +203,7 @@ export function WorkspacePane(props: {
   selectedAction: TuiAction;
   runState: TuiRunState;
   tick: number;
+  minHeight?: number;
 }): React.JSX.Element {
   const { runState } = props;
   const progressBar = renderProgressBar(
@@ -189,7 +215,7 @@ export function WorkspacePane(props: {
   const completionPulse = SIGNAL_FRAMES[props.tick % SIGNAL_FRAMES.length]!;
 
   return (
-    <Panel title="MISSION CONTROL" width="100%" minHeight={24} active>
+    <Panel title="MISSION CONTROL" width="100%" minHeight={props.minHeight ?? 24} active>
       <Text color={TUI_THEME.accentSoft} inverse>{props.selectedAction.label}</Text>
       <Text color={TUI_THEME.muted}>{props.selectedAction.description}</Text>
       <Newline />
@@ -301,13 +327,14 @@ export function FormPane(props: {
   suggestions: string[];
   activeSuggestionIndex: number;
   tick: number;
+  minHeight?: number;
 }): React.JSX.Element {
   if (props.actionId === "task-console") {
     return <PromptConsolePane {...props} />;
   }
 
   return (
-    <Panel title={props.title} width="100%" minHeight={24} active>
+    <Panel title={props.title} width="100%" minHeight={props.minHeight ?? 24} active>
       {props.fields.map((field, index) => {
         const active = index === props.activeFieldIndex;
         const displayValue =
@@ -372,6 +399,7 @@ function PromptConsolePane(props: {
   suggestions: string[];
   activeSuggestionIndex: number;
   tick: number;
+  minHeight?: number;
 }): React.JSX.Element {
   const promptField = props.fields.find((field) => field.id === "taskPrompt");
   const promptFieldIndex = props.fields.findIndex((field) => field.id === "taskPrompt");
@@ -386,7 +414,7 @@ function PromptConsolePane(props: {
   const modeLabel = modeField?.options?.find((option) => option.value === modeField.value)?.label || modeField?.value || "Preview only";
 
   return (
-    <Panel title={props.title} width="100%" minHeight={24} active>
+    <Panel title={props.title} width="100%" minHeight={props.minHeight ?? 24} active>
       <Text color={TUI_THEME.accentSoft} inverse>PROMPT STAGING CONSOLE</Text>
       <Text color={TUI_THEME.text}>Shape the future arbitrary agent task here before connector-backed execution exists.</Text>
       <Newline />
@@ -430,19 +458,20 @@ export function InfoPane(props: {
   snapshot: DashboardSnapshot | null;
   tick: number;
   width?: number | string;
+  minHeight?: number;
 }): React.JSX.Element {
   const { snapshot } = props;
 
   if (!snapshot) {
     return (
-      <Panel title="INTEL PANEL" width={props.width ?? 48} minHeight={24}>
+      <Panel title="INTEL PANEL" width={props.width ?? 48} minHeight={props.minHeight ?? 24}>
         <Text color={TUI_THEME.muted}>Loading dashboard snapshot...</Text>
       </Panel>
     );
   }
 
   return (
-    <Panel title={`INTEL PANEL :: ${props.view.toUpperCase()}`} width={props.width ?? 48} minHeight={24} active>
+    <Panel title={`INTEL PANEL :: ${props.view.toUpperCase()}`} width={props.width ?? 48} minHeight={props.minHeight ?? 24} active>
       {props.view === "browser" ? <BrowserStatus snapshot={snapshot} tick={props.tick} /> : null}
       {props.view === "runs" ? <RecentRuns snapshot={snapshot} /> : null}
       {props.view === "logs" ? <LatestLogs snapshot={snapshot} /> : null}
@@ -457,19 +486,46 @@ export function FooterBar(props: {
   loading: boolean;
   runtimeInfo: RuntimeEnvironmentInfo;
   lastInput?: TuiInputTrace | null;
+  compact?: boolean;
 }): React.JSX.Element {
+  const shortcutLine = props.compact
+    ? "↑↓ move • Enter run • Tab switch • Esc back • x abort • o output • q quit"
+    : "↑↓ move • ←→ / Tab switch • Enter run • Esc back • Ctrl+U clear field • x abort active run • g launch browser • r refresh • o open output • l logs • u runs • c config • b browser • q confirm quit";
+
   return (
     <Box borderStyle="single" borderColor={TUI_THEME.border} paddingX={1} paddingY={0} marginTop={1} flexDirection="column">
-      <Text color={TUI_THEME.muted}>
-        ↑↓ move • ←→ / Tab switch • Enter run • Esc back • Ctrl+U clear field • x abort active run • g launch browser • r refresh • o open output • l logs • u runs • c config • b browser • q confirm quit
-      </Text>
+      <Text color={TUI_THEME.muted}>{shortcutLine}</Text>
       <Text color={TUI_THEME.accentSoft}>
         panel={props.panelView} {props.formMode ? "| form=active" : "| form=idle"} {props.loading ? "| refresh=busy" : ""}
         {props.lastInput ? ` | last=${props.lastInput.label} @ ${props.lastInput.at}` : ""}
       </Text>
-      <Text color={TUI_THEME.muted}>
-        local={props.runtimeInfo.localTimestamp} | utc={props.runtimeInfo.utcTimestamp}
-        {props.runtimeInfo.approximateLocation ? ` | approx-location=${props.runtimeInfo.approximateLocation}` : ""}
+      <Text>
+        <Text color={TUI_THEME.muted}>local=</Text>
+        <Text color={TUI_THEME.accentSoft} inverse>{props.runtimeInfo.localTimestamp}</Text>
+        <Text color={TUI_THEME.muted}> | utc=</Text>
+        <Text color={TUI_THEME.accent} inverse>{props.runtimeInfo.utcTimestamp}</Text>
+        {props.runtimeInfo.approximateLocation ? (
+          <>
+            <Text color={TUI_THEME.muted}> | location=</Text>
+            <Text color={TUI_THEME.ok} inverse>{props.runtimeInfo.approximateLocation}</Text>
+          </>
+        ) : null}
+      </Text>
+    </Box>
+  );
+}
+
+export function CornerBadge(props: { tick: number; browserOnline: boolean }): React.JSX.Element {
+  const frame = CORNER_BADGE_FRAMES[props.tick % CORNER_BADGE_FRAMES.length]!;
+  return (
+    <Box flexDirection="column" alignItems="flex-end">
+      {frame.map((line, index) => (
+        <Text key={`${index}-${line}`} color={index === 1 ? TUI_THEME.accentSoft : TUI_THEME.border}>
+          {line}
+        </Text>
+      ))}
+      <Text color={props.browserOnline ? TUI_THEME.ok : TUI_THEME.warn}>
+        {SCAN_FRAMES[props.tick % SCAN_FRAMES.length]} {props.browserOnline ? "sensor link up" : "sensor link idle"}
       </Text>
     </Box>
   );
@@ -478,7 +534,10 @@ export function FooterBar(props: {
 function BrowserStatus(props: { snapshot: DashboardSnapshot; tick: number }): React.JSX.Element {
   const browser = props.snapshot.browser;
   const signal = SIGNAL_FRAMES[props.tick % SIGNAL_FRAMES.length]!;
-  const samplePages = browser.pages.slice(0, 10);
+  const terminalRows = process.stdout.rows ?? 40;
+  const samplePages = browser.pages.slice(0, terminalRows < 42 ? 4 : 10);
+  const issueLimit = terminalRows < 42 ? 2 : 4;
+  const suggestionLimit = terminalRows < 42 ? 2 : 4;
 
   return (
     <Box flexDirection="column">
@@ -497,7 +556,7 @@ function BrowserStatus(props: { snapshot: DashboardSnapshot; tick: number }): Re
       {browser.issues.length > 0 ? (
         <Box flexDirection="column" marginBottom={1}>
           <Text color={TUI_THEME.warn} inverse>ISSUES</Text>
-          {browser.issues.map((issue, index) => (
+          {browser.issues.slice(0, issueLimit).map((issue, index) => (
             <Text key={`${index}-${issue}`} color={TUI_THEME.muted}>
               - {truncate(issue, 44)}
             </Text>
@@ -507,7 +566,7 @@ function BrowserStatus(props: { snapshot: DashboardSnapshot; tick: number }): Re
       {browser.suggestions.length > 0 ? (
         <Box flexDirection="column" marginBottom={1}>
           <Text color={TUI_THEME.accentSoft} inverse>SUGGESTIONS</Text>
-          {browser.suggestions.map((suggestion, index) => (
+          {browser.suggestions.slice(0, suggestionLimit).map((suggestion, index) => (
             <Text key={`${index}-${suggestion}`} color={TUI_THEME.muted}>
               - {truncate(suggestion, 44)}
             </Text>
@@ -542,6 +601,9 @@ function BrowserStatus(props: { snapshot: DashboardSnapshot; tick: number }): Re
 }
 
 function RecentRuns({ snapshot }: { snapshot: DashboardSnapshot }): React.JSX.Element {
+  const terminalRows = process.stdout.rows ?? 40;
+  const runLimit = terminalRows < 42 ? 4 : 7;
+
   if (snapshot.recentRuns.length === 0) {
     return (
       <Box flexDirection="column">
@@ -553,7 +615,7 @@ function RecentRuns({ snapshot }: { snapshot: DashboardSnapshot }): React.JSX.El
 
   return (
     <Box flexDirection="column">
-      {snapshot.recentRuns.slice(0, 7).map((run) => (
+      {snapshot.recentRuns.slice(0, runLimit).map((run) => (
         <Box key={run.runDir} flexDirection="column" marginBottom={1}>
           <Text color={TUI_THEME.ok}>{run.workflow || "run"} :: {truncate(run.name || path.basename(run.runDir), 36)}</Text>
           <Text color={TUI_THEME.muted}>{run.createdAt}</Text>
@@ -565,6 +627,9 @@ function RecentRuns({ snapshot }: { snapshot: DashboardSnapshot }): React.JSX.El
 }
 
 function LatestLogs({ snapshot }: { snapshot: DashboardSnapshot }): React.JSX.Element {
+  const terminalRows = process.stdout.rows ?? 40;
+  const logLimit = terminalRows < 42 ? 6 : 12;
+
   return (
     <Box flexDirection="column">
       <Text color={TUI_THEME.ok}>{snapshot.latestLog.logPath || "No log file yet."}</Text>
@@ -572,7 +637,7 @@ function LatestLogs({ snapshot }: { snapshot: DashboardSnapshot }): React.JSX.El
       {snapshot.latestLog.lines.length === 0 ? (
         <Text color={TUI_THEME.muted}>No log lines available.</Text>
       ) : (
-        snapshot.latestLog.lines.slice(-12).map((line, index) => (
+        snapshot.latestLog.lines.slice(-logLimit).map((line, index) => (
           <Text key={`${index}-${line}`} color={TUI_THEME.muted}>
             {truncate(line, 44)}
           </Text>
@@ -584,11 +649,13 @@ function LatestLogs({ snapshot }: { snapshot: DashboardSnapshot }): React.JSX.El
 
 function ConfigSummary({ snapshot }: { snapshot: DashboardSnapshot }): React.JSX.Element {
   const config = snapshot.config;
+  const terminalRows = process.stdout.rows ?? 40;
+  const allowedRootLimit = terminalRows < 42 ? 3 : 5;
   return (
     <Box flexDirection="column">
       <Text color={TUI_THEME.ok}>Output: {config.outputDirectory}</Text>
       <Text color={TUI_THEME.text}>Allowed roots</Text>
-      {config.allowedDirectories.slice(0, 5).map((directory, index) => (
+      {config.allowedDirectories.slice(0, allowedRootLimit).map((directory, index) => (
         <Text key={`${index}-${directory}`} color={TUI_THEME.muted}>
           - {truncate(directory, 44)}
         </Text>

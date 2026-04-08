@@ -80,11 +80,11 @@ export const TUI_ACTIONS: TuiAction[] = [
   },
   {
     id: "folder",
-    label: "Compile Folder",
+    label: "Summarize Folder Context",
     shortLabel: "folder",
-    description: "Scan an allowed folder, rank the files, and compile a dense context bundle.",
-    formTitle: "Compile Folder",
-    submitLabel: "Run Folder Compile",
+    description: "Scan an allowed folder, rank the files, and synthesize a dense context bundle.",
+    formTitle: "Summarize Folder Context",
+    submitLabel: "Run Folder Summary",
     createFields: () => [
       {
         id: "folderPath",
@@ -110,11 +110,11 @@ export const TUI_ACTIONS: TuiAction[] = [
   },
   {
     id: "directory-copy",
-    label: "Copy Folder As Markdown/Text",
+    label: "Export Literal Folder Copy",
     shortLabel: "copy",
-    description: "Create a literal directory export with a recursive file list and aggregated file bodies.",
-    formTitle: "Copy Folder As Markdown/Text",
-    submitLabel: "Run Directory Copy",
+    description: "Create a literal folder export with a recursive file list and aggregated file bodies.",
+    formTitle: "Export Literal Folder Copy",
+    submitLabel: "Run Literal Copy",
     createFields: () => [
       {
         id: "folderPath",

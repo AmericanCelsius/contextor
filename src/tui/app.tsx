@@ -7,7 +7,7 @@ import { BrowserPageSummary, RunEvent, WorkflowResult } from "../core/types";
 import { clearTerminalViewport, getRecommendedFolderPaths, getRuntimeEnvironmentInfo } from "../utils/system";
 import { TUI_ACTIONS } from "./actions";
 import { completeFolderPath, executeWorkflow, getFolderPathStatus, loadDashboardSnapshot } from "./controller";
-import { ActionMenu, BootSplash, ConfirmActionPane, ConfirmQuitPane, FooterBar, FormPane, InfoPane, QuitSplash, WorkspacePane } from "./components";
+import { ActionMenu, BootSplash, ConfirmActionPane, ConfirmQuitPane, CornerBadge, FooterBar, FormPane, InfoPane, QuitSplash, WorkspacePane } from "./components";
 import { TUI_THEME } from "./theme";
 import {
   DashboardSnapshot,
@@ -26,7 +26,12 @@ const PANEL_ORDER: TuiPanelView[] = ["browser", "runs", "logs", "config"];
 export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }): React.JSX.Element {
   const { exit } = useApp();
   const terminalWidth = process.stdout.columns ?? 120;
-  const compactLayout = terminalWidth < 160;
+  const terminalRows = process.stdout.rows ?? 40;
+  const compactLayout = terminalWidth < 150 || terminalRows < 42;
+  const reducedWidthLayout = !compactLayout && (terminalWidth < 176 || terminalRows < 50);
+  const panelMinHeight = terminalRows < 34 ? 14 : terminalRows < 44 ? 18 : 24;
+  const menuWidth = compactLayout ? "100%" : reducedWidthLayout ? 30 : 34;
+  const infoWidth = compactLayout ? "100%" : reducedWidthLayout ? 40 : 48;
 
   const [snapshot, setSnapshot] = useState<DashboardSnapshot | null>(null);
   const [loadingSnapshot, setLoadingSnapshot] = useState(true);
@@ -840,9 +845,16 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
 
   return (
     <Box flexDirection="column" paddingX={1}>
-      <Header snapshot={snapshot} loading={loadingSnapshot} />
+      <Header snapshot={snapshot} loading={loadingSnapshot} tick={tick} compact={compactLayout} />
       <Box marginTop={1} flexDirection={compactLayout ? "column" : "row"}>
-        <ActionMenu actions={TUI_ACTIONS} selectedIndex={selectedActionIndex} lastInput={lastInput} width={compactLayout ? "100%" : 34} />
+        <ActionMenu
+          actions={TUI_ACTIONS}
+          selectedIndex={selectedActionIndex}
+          lastInput={lastInput}
+          width={menuWidth}
+          minHeight={panelMinHeight}
+          tick={tick}
+        />
         <Box marginLeft={compactLayout ? 0 : 1} marginTop={compactLayout ? 1 : 0} flexGrow={1} flexDirection="column">
           {activeFormAction ? (
             <FormPane
@@ -856,13 +868,14 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
               suggestions={folderPathStatus.matches.length > 0 ? folderPathStatus.matches : recommendedFolderPaths}
               activeSuggestionIndex={activeSuggestionIndex}
               tick={tick}
+              minHeight={panelMinHeight}
             />
           ) : (
-            <WorkspacePane selectedAction={selectedAction} runState={runState} tick={tick} />
+            <WorkspacePane selectedAction={selectedAction} runState={runState} tick={tick} minHeight={panelMinHeight} />
           )}
         </Box>
         <Box marginLeft={compactLayout ? 0 : 1} marginTop={compactLayout ? 1 : 0}>
-          <InfoPane view={activePanelView} snapshot={snapshot} tick={tick} width={compactLayout ? "100%" : 48} />
+          <InfoPane view={activePanelView} snapshot={snapshot} tick={tick} width={infoWidth} minHeight={panelMinHeight} />
         </Box>
       </Box>
       <FooterBar
@@ -871,12 +884,13 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
         loading={loadingSnapshot}
         runtimeInfo={runtimeInfo}
         lastInput={lastInput}
+        compact={compactLayout}
       />
     </Box>
   );
 }
 
-function Header(props: { snapshot: DashboardSnapshot | null; loading: boolean }): React.JSX.Element {
+function Header(props: { snapshot: DashboardSnapshot | null; loading: boolean; tick: number; compact: boolean }): React.JSX.Element {
   const browserText = props.snapshot
     ? props.snapshot.browser.endpointReachable
       ? `browser online • ${props.snapshot.browser.usableTargets} tab(s)`
@@ -889,9 +903,12 @@ function Header(props: { snapshot: DashboardSnapshot | null; loading: boolean })
         <Text color={TUI_THEME.accent}>Contextor v{CONTEXTOR_VERSION}</Text>
         <Text color={TUI_THEME.text}>Terminal-contained local context console</Text>
       </Box>
-      <Box flexDirection="column" alignItems="flex-end">
-        <Text color={props.snapshot?.browser.endpointReachable ? TUI_THEME.ok : TUI_THEME.warn}>{browserText}</Text>
-        <Text color={TUI_THEME.muted}>{props.loading ? "dashboard refresh active" : "input echo + animation layer active"}</Text>
+      <Box flexDirection={props.compact ? "column" : "row"} alignItems="flex-end">
+        <Box flexDirection="column" alignItems="flex-end" marginRight={props.compact ? 0 : 2}>
+          <Text color={props.snapshot?.browser.endpointReachable ? TUI_THEME.ok : TUI_THEME.warn}>{browserText}</Text>
+          <Text color={TUI_THEME.muted}>{props.loading ? "dashboard refresh active" : "input echo + animation layer active"}</Text>
+        </Box>
+        <CornerBadge tick={props.tick} browserOnline={Boolean(props.snapshot?.browser.endpointReachable)} />
       </Box>
     </Box>
   );
