@@ -1,16 +1,18 @@
 # Contextor
 
-Contextor is a local-first context aggregation and browser automation tool for macOS. In `v0.2.0`, the primary GUI surface is a true terminal-contained TUI built with Ink. The old browser dashboard is no longer the main interface.
+Contextor is a local-first context aggregation and browser automation tool for macOS. In `v0.2.1`, the primary GUI surface is a true terminal-contained TUI built with Ink. The old browser dashboard is no longer the main interface.
 
-## What Changed In v0.2.0
+## What Changed In v0.2.1
 
-- Replaced the browser-first HTML dashboard with a terminal-contained TUI
-- Added `contextor tui` and `contextor dashboard`
-- Kept the existing core workflows intact
-- Improved Chrome attach diagnostics for open-tab workflows
-- Deprecated `contextor gui` as a browser-surface entrypoint; it now forwards to the TUI
+- Preserved the `v0.2.0` TUI as the baseline and moved polish work into `v0.2.1`
+- Added animated startup, shutdown, run-progress, browser-connect, and path-validation indicators
+- Added live input echo so the last navigation or command key is always visible
+- Added folder-path autocomplete and quoted-path normalization for TUI path entry
+- Added descriptive run folder names: `output/runs/<timestamp>__<workflow>__<goal-slug>/`
+- Added `contextor launch` and `contextor start` as one-line bootstrap commands
+- Kept the existing core workflows intact and read-only by default
 
-The TUI is designed as a retro-futuristic command console with panel layout, keyboard navigation, recent runs, logs, config summary, and browser attach status.
+The TUI is designed as a retro-futuristic command console with panel layout, keyboard navigation, recent runs, logs, config summary, browser attach status, and animated workflow feedback.
 
 ## Install
 
@@ -66,6 +68,13 @@ You can also use:
 contextor dashboard
 ```
 
+One-line bootstrap:
+
+```bash
+contextor launch
+contextor start
+```
+
 Deprecated alias:
 
 ```bash
@@ -89,13 +98,14 @@ Keyboard-first controls:
 
 - `↑` / `↓` select action
 - `Enter` run or open a form
-- `Tab` switch inspect panels
+- `Tab` switch inspect panels, or autocomplete the folder path field when it is active
 - `r` refresh
 - `o` open the latest output folder
 - `l` focus logs
 - `u` focus recent runs
 - `c` focus config
 - `b` focus browser status
+- `Esc` back out of forms
 - `q` quit
 
 ## CLI Reference
@@ -105,6 +115,8 @@ Keyboard-first controls:
 ```bash
 contextor tui
 contextor dashboard
+contextor launch
+contextor start
 ```
 
 ### Browser Status
@@ -168,14 +180,14 @@ Exports:
 contextor social-audit --platform instagram --mode non-mutuals --dry-run
 ```
 
-Still read-only in `v0.2.0`.
+Still read-only in `v0.2.1`.
 
 ## Output Structure
 
 Each run writes to:
 
 ```text
-output/runs/<timestamp>/
+output/runs/<timestamp>__<workflow>__<goal-slug>/
 ```
 
 With artifacts such as:
@@ -190,7 +202,7 @@ artifacts/*.pdf
 manifests/sources.json
 ```
 
-Instagram audit runs also write their audit artifacts in the same timestamped bundle.
+Instagram audit runs also write their audit artifacts in the same run bundle.
 
 ## Browser Attach Notes
 
@@ -232,13 +244,16 @@ Contextor remains:
 
 ## TUI Notes
 
-The TUI is built with Ink and custom terminal panels. `@inkjs/ui` was evaluated as part of the integration path, but the shipped interface relies primarily on custom Ink components. `TerminalTextEffects` was evaluated as inspiration only and was not adopted as a Python runtime dependency.
+The TUI is built with Ink and custom terminal panels. `@inkjs/ui` was evaluated as part of the integration path, but the shipped interface relies primarily on custom Ink components. `TerminalTextEffects` was used as animation inspiration, but the shipped runtime remains Node.js and TypeScript rather than embedding the Python engine directly.
 
 Implemented visual polish:
 
 - alternate-screen terminal containment
 - retro command-console panel styling
-- lightweight built-in boot splash
+- startup and shutdown animation sequences
+- animated run-progress and browser/path indicators
+- live input echo for navigation and command keys
+- folder-path autocomplete and validation hints
 
 Not implemented:
 
@@ -258,6 +273,7 @@ Useful local commands:
 
 ```bash
 node dist/cli/index.js tui
+node dist/cli/index.js launch
 node dist/cli/index.js browser-status
 node dist/cli/index.js tabs --all --goal "summarize my current browser context"
 ```

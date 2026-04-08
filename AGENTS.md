@@ -2,7 +2,7 @@
 
 ## Project Purpose
 
-Contextor is a local-first context compiler and browser automation tool. As of `v0.2.0`, the primary interactive UI is the terminal-contained TUI under `src/tui/`.
+Contextor is a local-first context compiler and browser automation tool. As of `v0.2.1`, the primary interactive UI is the terminal-contained TUI under `src/tui/`.
 
 Primary surfaces:
 
@@ -26,6 +26,7 @@ Primary surfaces:
 - `social-audit`: read-only Instagram non-mutuals audit
 - `browser-status`: inspect CDP/browser attach health
 - `tui`: launch the main terminal dashboard
+- `launch` / `start`: install, build, then launch the TUI from the project root
 
 ## Important Files
 
@@ -57,8 +58,10 @@ npm run smoke:folder
 - Ink is the primary TUI runtime
 - the TUI is keyboard-first and terminal-contained
 - keep visual styling intentional, readable, and slightly retro
-- lightweight built-in splash effects are acceptable
+- keep startup, shutdown, run-progress, and validation animations working
 - avoid external animation runtimes unless complexity stays very low
+- preserve the input-echo layer so the last command/navigation key remains visible
+- keep folder path autocomplete and quoted-path handling working
 
 ## Safety Notes
 
@@ -72,7 +75,7 @@ npm run smoke:folder
 Every workflow should continue writing to:
 
 ```text
-output/runs/<timestamp>/
+output/runs/<timestamp>__<workflow>__<goal-slug>/
 ```
 
 With:

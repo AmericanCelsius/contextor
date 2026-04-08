@@ -31,6 +31,13 @@ Or after `npm link`:
 contextor tui
 ```
 
+One-line bootstrap:
+
+```bash
+contextor launch
+contextor start
+```
+
 ## Useful First Commands
 
 Check browser attach status:
@@ -60,12 +67,13 @@ contextor page-export --current --mode linkedin --goal "export this LinkedIn pag
 ## Output Location
 
 ```text
-output/runs/<timestamp>/
+output/runs/<timestamp>__<workflow>__<goal-slug>/
 ```
 
 ## Current Primary GUI
 
 - `contextor tui` is the main GUI
+- `contextor launch` and `contextor start` install, build, then open the TUI
 - `contextor gui` is only a deprecated alias to the TUI
 - the old browser dashboard is no longer the primary product surface
 

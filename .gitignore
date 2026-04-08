@@ -1,6 +1,7 @@
 node_modules
 dist
-output/runs
+output
 output/.contextor-gui
+gui-inspiration/terminaltexteffects-main
 .DS_Store
 *.log
