@@ -1,3 +1,5 @@
+import path from "node:path";
+
 import { ContextorOrchestrator } from "../core/orchestrator";
 import { RunEvent } from "../core/types";
 import { launchChromeDebugBrowser, openPathInShell } from "../utils/system";
@@ -44,9 +46,17 @@ export async function executeWorkflow(
           match: scope === "match" ? values.match || undefined : undefined,
         },
         observe,
+        options.signal,
       );
       return { result, events };
     }
+    case "task-console":
+      return {
+        result: {
+          summary: `Task console preview captured: ${truncate(values.taskPrompt || "No task prompt provided.", 96)}. Connector-backed execution is not enabled in v0.2.2.`,
+        },
+        events,
+      };
     case "folder":
       if (!values.folderPath) {
         throw new Error("Folder Path is required.");
@@ -107,13 +117,9 @@ export async function executeWorkflow(
         events,
       };
     case "open-output": {
-      const latestRun = snapshot.recentRuns[0];
-      if (!latestRun) {
-        throw new Error("No previous runs exist yet.");
-      }
-
-      openPathInShell(latestRun.runDir);
-      return { result: { summary: `Opened ${latestRun.runDir}` }, events };
+      const runsRoot = path.join(snapshot.config.outputDirectory, "runs");
+      openPathInShell(runsRoot);
+      return { result: { summary: `Opened ${runsRoot}` }, events };
     }
     case "launch-browser": {
       const summary = await launchChromeDebugBrowser(
@@ -145,6 +151,14 @@ function parseCopyFormat(value: string | undefined): "md" | "txt" | "both" {
   }
 
   return "both";
+}
+
+function truncate(value: string, maxLength: number): string {
+  if (value.length <= maxLength) {
+    return value;
+  }
+
+  return `${value.slice(0, Math.max(0, maxLength - 3)).trimEnd()}...`;
 }
 
 export async function getFolderPathStatus(orchestrator: ContextorOrchestrator, rawValue: string): Promise<TuiPathStatus> {

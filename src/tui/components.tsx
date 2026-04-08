@@ -95,8 +95,8 @@ export function ConfirmActionPane(props: { tick: number; confirmation: TuiConfir
       <Panel title={props.confirmation.title} active width={92} minHeight={14}>
         <Text color={TUI_THEME.warn}>{frame} {props.confirmation.message}</Text>
         <Newline />
-        {props.confirmation.details.map((detail) => (
-          <Text key={detail} color={TUI_THEME.text}>
+        {props.confirmation.details.map((detail, index) => (
+          <Text key={`${index}-${detail}`} color={TUI_THEME.text}>
             {truncate(detail, 86)}
           </Text>
         ))}
@@ -115,6 +115,12 @@ export function Panel(props: {
   active?: boolean;
   children: React.ReactNode;
 }): React.JSX.Element {
+  const terminalWidth = process.stdout.columns ?? 120;
+  const resolvedWidth =
+    typeof props.width === "number"
+      ? Math.min(props.width, Math.max(20, terminalWidth - 4))
+      : props.width;
+
   return (
     <Box
       borderStyle="round"
@@ -122,7 +128,7 @@ export function Panel(props: {
       flexDirection="column"
       paddingX={1}
       paddingY={0}
-      width={props.width}
+      width={resolvedWidth}
       minHeight={props.minHeight}
     >
       <Text color={props.active ? TUI_THEME.accentSoft : TUI_THEME.title}>{props.title}</Text>
@@ -137,9 +143,10 @@ export function ActionMenu(props: {
   actions: TuiAction[];
   selectedIndex: number;
   lastInput?: TuiInputTrace | null;
+  width?: number | string;
 }): React.JSX.Element {
   return (
-    <Panel title="COMMAND GRID" active width={34} minHeight={24}>
+    <Panel title="COMMAND GRID" active width={props.width ?? 34} minHeight={24}>
       {props.actions.map((action, index) => {
         const selected = index === props.selectedIndex;
         return (
@@ -199,7 +206,7 @@ export function WorkspacePane(props: {
           <Text color={TUI_THEME.muted}>
             {runState.abortable
               ? runState.abortRequested
-                ? "Abort requested. Contextor will stop after the current file operation completes."
+                ? "Abort requested. Contextor will stop after the current browser or filesystem step completes."
                 : "Press x to open the abort prompt while this workflow is running."
               : "Navigation is locked while the workflow is executing."}
           </Text>
@@ -325,7 +332,7 @@ export function FormPane(props: {
           <Newline />
           <Text color={TUI_THEME.accentSoft}>Path Suggestions</Text>
           {props.suggestions.slice(0, 8).map((suggestion, index) => (
-            <Text key={suggestion} color={index === props.activeSuggestionIndex ? TUI_THEME.accentSoft : TUI_THEME.muted} inverse={index === props.activeSuggestionIndex}>
+            <Text key={`${index}-${suggestion}`} color={index === props.activeSuggestionIndex ? TUI_THEME.accentSoft : TUI_THEME.muted} inverse={index === props.activeSuggestionIndex}>
               {index === props.activeSuggestionIndex ? ">" : " "} {truncate(suggestion, 94)}
             </Text>
           ))}
@@ -343,19 +350,20 @@ export function InfoPane(props: {
   view: TuiPanelView;
   snapshot: DashboardSnapshot | null;
   tick: number;
+  width?: number | string;
 }): React.JSX.Element {
   const { snapshot } = props;
 
   if (!snapshot) {
     return (
-      <Panel title="INTEL PANEL" width={48} minHeight={24}>
+      <Panel title="INTEL PANEL" width={props.width ?? 48} minHeight={24}>
         <Text color={TUI_THEME.muted}>Loading dashboard snapshot...</Text>
       </Panel>
     );
   }
 
   return (
-    <Panel title={`INTEL PANEL :: ${props.view.toUpperCase()}`} width={48} minHeight={24} active>
+    <Panel title={`INTEL PANEL :: ${props.view.toUpperCase()}`} width={props.width ?? 48} minHeight={24} active>
       {props.view === "browser" ? <BrowserStatus snapshot={snapshot} tick={props.tick} /> : null}
       {props.view === "runs" ? <RecentRuns snapshot={snapshot} /> : null}
       {props.view === "logs" ? <LatestLogs snapshot={snapshot} /> : null}
@@ -374,7 +382,7 @@ export function FooterBar(props: {
   return (
     <Box borderStyle="single" borderColor={TUI_THEME.border} paddingX={1} paddingY={0} marginTop={1} flexDirection="column">
       <Text color={TUI_THEME.muted}>
-        ↑↓ move • ←→ / Tab switch • Enter run • Esc back • Ctrl+U clear field • x abort filesystem run • g launch browser • r refresh • o open output • l logs • u runs • c config • b browser • q confirm quit
+        ↑↓ move • ←→ / Tab switch • Enter run • Esc back • Ctrl+U clear field • x abort active run • g launch browser • r refresh • o open output • l logs • u runs • c config • b browser • q confirm quit
       </Text>
       <Text color={TUI_THEME.accentSoft}>
         panel={props.panelView} {props.formMode ? "| form=active" : "| form=idle"} {props.loading ? "| refresh=busy" : ""}
@@ -407,8 +415,8 @@ function BrowserStatus(props: { snapshot: DashboardSnapshot; tick: number }): Re
       {browser.issues.length > 0 ? (
         <Box flexDirection="column" marginBottom={1}>
           <Text color={TUI_THEME.accentSoft}>Issues</Text>
-          {browser.issues.map((issue) => (
-            <Text key={issue} color={TUI_THEME.muted}>
+          {browser.issues.map((issue, index) => (
+            <Text key={`${index}-${issue}`} color={TUI_THEME.muted}>
               - {truncate(issue, 44)}
             </Text>
           ))}
@@ -417,8 +425,8 @@ function BrowserStatus(props: { snapshot: DashboardSnapshot; tick: number }): Re
       {browser.suggestions.length > 0 ? (
         <Box flexDirection="column" marginBottom={1}>
           <Text color={TUI_THEME.accentSoft}>Suggestions</Text>
-          {browser.suggestions.map((suggestion) => (
-            <Text key={suggestion} color={TUI_THEME.muted}>
+          {browser.suggestions.map((suggestion, index) => (
+            <Text key={`${index}-${suggestion}`} color={TUI_THEME.muted}>
               - {truncate(suggestion, 44)}
             </Text>
           ))}
@@ -429,7 +437,7 @@ function BrowserStatus(props: { snapshot: DashboardSnapshot; tick: number }): Re
         <Text color={TUI_THEME.muted}>No attached tabs are visible yet.</Text>
       ) : (
         samplePages.map((page, index) => (
-          <Box key={`${page.url}-${page.title}`} flexDirection="column" marginBottom={1}>
+          <Box key={`${index}-${page.url}-${page.title}`} flexDirection="column" marginBottom={1}>
             <Text color={TUI_THEME.text}>
               {String(index + 1).padStart(2, "0")}. {truncate(page.title || page.url, 44)}
             </Text>
@@ -488,8 +496,8 @@ function ConfigSummary({ snapshot }: { snapshot: DashboardSnapshot }): React.JSX
     <Box flexDirection="column">
       <Text color={TUI_THEME.ok}>Output: {config.outputDirectory}</Text>
       <Text color={TUI_THEME.text}>Allowed roots</Text>
-      {config.allowedDirectories.slice(0, 5).map((directory) => (
-        <Text key={directory} color={TUI_THEME.muted}>
+      {config.allowedDirectories.slice(0, 5).map((directory, index) => (
+        <Text key={`${index}-${directory}`} color={TUI_THEME.muted}>
           - {truncate(directory, 44)}
         </Text>
       ))}

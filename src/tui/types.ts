@@ -11,6 +11,7 @@ export type TuiPanelView = "browser" | "runs" | "logs" | "config";
 
 export type TuiActionId =
   | "tabs"
+  | "task-console"
   | "folder"
   | "directory-copy"
   | "page-export"

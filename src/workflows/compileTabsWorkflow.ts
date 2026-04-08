@@ -1,7 +1,7 @@
 import { BrowserAdapter } from "../adapters/browserAdapter";
 import { ContextCompiler } from "../compiler/contextCompiler";
 import { RunLogger } from "../core/logger";
-import { CompileTabsOptions, RunDirectories, WorkflowResult } from "../core/types";
+import { CompileTabsOptions, RunDirectories, RunObserver, WorkflowResult } from "../core/types";
 
 export async function runCompileTabsWorkflow(input: {
   browserAdapter: BrowserAdapter;
@@ -9,6 +9,8 @@ export async function runCompileTabsWorkflow(input: {
   logger: RunLogger;
   runDirectories: RunDirectories;
   options: CompileTabsOptions;
+  observe?: RunObserver;
+  signal?: AbortSignal;
 }): Promise<WorkflowResult> {
   const selection = {
     all: input.options.all ?? false,
@@ -19,7 +21,23 @@ export async function runCompileTabsWorkflow(input: {
   const browserSources = await input.browserAdapter.capturePages(selection, input.runDirectories, {
     includePdf: false,
     requireAttachedSession: true,
+    signal: input.signal,
+    onProgress: (progress) =>
+      input.observe?.({
+        kind: "progress",
+        workflow: "tabs",
+        goal: input.options.goal,
+        runDir: input.runDirectories.root,
+        progress: {
+          phase: progress.phase,
+          current: progress.current,
+          total: progress.total,
+          unit: "tabs",
+          details: progress.details,
+        },
+      }),
   });
+  throwIfAborted(input.signal);
   if (browserSources.length === 0) {
     throw new Error(await input.browserAdapter.describeSelectionFailure(selection));
   }
@@ -32,6 +50,21 @@ export async function runCompileTabsWorkflow(input: {
     "Use the browser source excerpts to reconstruct immediate context before opening the full artifacts.",
     "Inspect manifests/sources.json if you need complete provenance for each tab capture.",
   ];
+
+  await input.observe?.({
+    kind: "progress",
+    workflow: "tabs",
+    goal: input.options.goal,
+    runDir: input.runDirectories.root,
+    progress: {
+      phase: "compiling",
+      current: browserSources.length,
+      total: browserSources.length,
+      unit: "tabs",
+      details: "Rendering tab context bundle artifacts...",
+    },
+  });
+  throwIfAborted(input.signal);
 
   const result = await input.compiler.compile(input.runDirectories, {
     goal: input.options.goal,
@@ -48,4 +81,10 @@ export async function runCompileTabsWorkflow(input: {
     workflow: "tabs",
     summary: `Compiled ${browserSources.length} tab(s) into context.md`,
   };
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) {
+    throw new Error("Tabs compile aborted by operator.");
+  }
 }

@@ -43,7 +43,7 @@ export class ContextorOrchestrator {
     return this.projectRoot;
   }
 
-  async compileTabs(options: CompileTabsOptions, observe?: RunObserver): Promise<WorkflowResult> {
+  async compileTabs(options: CompileTabsOptions, observe?: RunObserver, signal?: AbortSignal): Promise<WorkflowResult> {
     const runDirectories = await createRunDirectories(this.config.outputDirectory, {
       workflow: "tabs",
       goal: options.goal,
@@ -75,6 +75,8 @@ export class ContextorOrchestrator {
         logger,
         runDirectories,
         options,
+        observe,
+        signal,
       });
       await observe?.({
         kind: "run-completed",

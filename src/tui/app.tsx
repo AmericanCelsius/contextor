@@ -202,8 +202,8 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
           setRunState((current) => ({
             ...current,
             abortRequested: true,
-            progressLabel: "Abort requested. Stopping after the current file operation...",
-            message: "Abort requested. Contextor will stop after the current file operation completes.",
+            progressLabel: "Abort requested. Stopping after the current browser or filesystem step...",
+            message: "Abort requested. Contextor will stop after the current browser or filesystem step completes.",
           }));
           runAbortController?.abort();
           return;
@@ -842,7 +842,7 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
     <Box flexDirection="column" paddingX={1}>
       <Header snapshot={snapshot} loading={loadingSnapshot} />
       <Box marginTop={1} flexDirection={compactLayout ? "column" : "row"}>
-        <ActionMenu actions={TUI_ACTIONS} selectedIndex={selectedActionIndex} lastInput={lastInput} />
+        <ActionMenu actions={TUI_ACTIONS} selectedIndex={selectedActionIndex} lastInput={lastInput} width={compactLayout ? "100%" : 34} />
         <Box marginLeft={compactLayout ? 0 : 1} marginTop={compactLayout ? 1 : 0} flexGrow={1} flexDirection="column">
           {activeFormAction ? (
             <FormPane
@@ -861,7 +861,7 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
           )}
         </Box>
         <Box marginLeft={compactLayout ? 0 : 1} marginTop={compactLayout ? 1 : 0}>
-          <InfoPane view={activePanelView} snapshot={snapshot} tick={tick} />
+          <InfoPane view={activePanelView} snapshot={snapshot} tick={tick} width={compactLayout ? "100%" : 48} />
         </Box>
       </Box>
       <FooterBar
@@ -1163,7 +1163,7 @@ function actionHasFolderPath(action: TuiAction | null): boolean {
 }
 
 function isAbortableAction(actionId: TuiAction["id"] | undefined): boolean {
-  return actionId === "folder" || actionId === "directory-copy";
+  return actionId === "tabs" || actionId === "folder" || actionId === "directory-copy";
 }
 
 function buildFolderWorkflowConfirmationDetails(

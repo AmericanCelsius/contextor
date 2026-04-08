@@ -38,6 +38,24 @@ export const TUI_ACTIONS: TuiAction[] = [
     ],
   },
   {
+    id: "task-console",
+    label: "Task Console Preview",
+    shortLabel: "tasks",
+    description: "Preview future long-running agentic task prompts without enabling risky automation yet.",
+    formTitle: "Task Console Preview",
+    submitLabel: "Preview Task Request",
+    createFields: () => [
+      {
+        id: "taskPrompt",
+        label: "Task Prompt",
+        type: "text",
+        value: "go to my instagram profile and review likely non-mutual accounts in read-only mode",
+        placeholder: "Describe a future connector-backed task",
+        hint: "This is a preview scaffold only. It does not execute browser-control automation yet.",
+      },
+    ],
+  },
+  {
     id: "folder",
     label: "Compile Folder",
     shortLabel: "folder",
@@ -154,9 +172,9 @@ export const TUI_ACTIONS: TuiAction[] = [
   },
   {
     id: "open-output",
-    label: "Open Latest Output Folder",
+    label: "Open Output Runs Folder",
     shortLabel: "output",
-    description: "Open the most recent output bundle in the OS file browser.",
+    description: "Open the output/runs directory in the OS file browser.",
   },
   {
     id: "view-logs",

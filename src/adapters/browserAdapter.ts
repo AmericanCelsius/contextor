@@ -29,6 +29,13 @@ interface ConnectionOptions {
   requireAttachedSession?: boolean;
 }
 
+interface CaptureProgress {
+  phase: "indexing" | "extracting" | "complete";
+  current: number;
+  total: number;
+  details?: string;
+}
+
 export class BrowserAdapter {
   private readonly turndown = new TurndownService({ codeBlockStyle: "fenced", headingStyle: "atx" });
 
@@ -148,20 +155,50 @@ export class BrowserAdapter {
   async capturePages(
     selection: PageSelection,
     runDirectories: RunDirectories,
-    options: { preferredMode?: string; includePdf?: boolean; requireAttachedSession?: boolean },
+    options: {
+      preferredMode?: string;
+      includePdf?: boolean;
+      requireAttachedSession?: boolean;
+      signal?: AbortSignal;
+      onProgress?: (progress: CaptureProgress) => Promise<void> | void;
+    },
   ): Promise<BrowserSource[]> {
+    throwIfAborted(options.signal, "Tabs compile aborted by operator.");
     const pages = await this.selectPages(selection, {
       requireAttachedSession: options.requireAttachedSession,
     });
     const sources: BrowserSource[] = [];
 
-    for (const page of pages) {
+    await options.onProgress?.({
+      phase: "indexing",
+      current: 0,
+      total: pages.length,
+      details: `Attached to ${pages.length} tab(s). Beginning capture pass.`,
+    });
+
+    for (const [index, page] of pages.entries()) {
+      throwIfAborted(options.signal, "Tabs compile aborted by operator.");
       const target = { title: await this.getSafeTitle(page), url: page.url() };
       const strategy = resolveStrategy(target, this.config.strategies.enabled, options.preferredMode);
-      const source = await this.capturePage(page, strategy, runDirectories, { includePdf: options.includePdf ?? false });
+      const source = await this.capturePage(page, strategy, runDirectories, {
+        includePdf: options.includePdf ?? false,
+        signal: options.signal,
+      });
       sources.push(source);
+      await options.onProgress?.({
+        phase: "extracting",
+        current: index + 1,
+        total: pages.length,
+        details: target.title || target.url,
+      });
     }
 
+    await options.onProgress?.({
+      phase: "complete",
+      current: sources.length,
+      total: pages.length,
+      details: `Captured ${sources.length} tab source(s).`,
+    });
     return sources;
   }
 
@@ -169,13 +206,15 @@ export class BrowserAdapter {
     page: Page,
     strategy: SiteStrategy,
     runDirectories: RunDirectories,
-    options: { includePdf: boolean },
+    options: { includePdf: boolean; signal?: AbortSignal },
   ): Promise<BrowserSource> {
+    throwIfAborted(options.signal, "Tabs compile aborted by operator.");
     const title = await this.getSafeTitle(page);
     const url = page.url();
     await this.logger.info("Capturing browser page", { title, url, strategy: strategy.name });
 
-    await this.expandPage(page, strategy.getExpansionPlan());
+    await this.expandPage(page, strategy.getExpansionPlan(), options.signal);
+    throwIfAborted(options.signal, "Tabs compile aborted by operator.");
     const extracted = strategy.postProcess
       ? strategy.postProcess(await this.extractPageContent(page))
       : await this.extractPageContent(page);
@@ -228,11 +267,12 @@ export class BrowserAdapter {
     };
   }
 
-  async expandPage(page: Page, plan: ExpansionPlan): Promise<void> {
+  async expandPage(page: Page, plan: ExpansionPlan, signal?: AbortSignal): Promise<void> {
     for (let round = 0; round < plan.maxRounds; round += 1) {
+      throwIfAborted(signal, "Tabs compile aborted by operator.");
       const beforeLength = await this.bodyTextLength(page);
       const clicks = await this.clickVisibleExpanders(page, plan);
-      await this.scrollToStable(page, plan.scrollSelectors, 1, plan.waitAfterInteractionMs);
+      await this.scrollToStable(page, plan.scrollSelectors, 1, plan.waitAfterInteractionMs, signal);
       const afterLength = await this.bodyTextLength(page);
       const stable = clicks === 0 || Math.abs(afterLength - beforeLength) < 120;
 
@@ -247,8 +287,10 @@ export class BrowserAdapter {
     selectors: string[],
     maxPasses = this.config.browser.maxScrollPasses,
     waitMs = 300,
+    signal?: AbortSignal,
   ): Promise<void> {
     for (let pass = 0; pass < maxPasses; pass += 1) {
+      throwIfAborted(signal, "Tabs compile aborted by operator.");
       const moved = await page.evaluate(
         ({ selectors: candidateSelectors }) => {
           const resolveScrollRoot = (): Element | Window => {
@@ -562,6 +604,12 @@ function formatSelectionLabel(selection: PageSelection): string {
   }
 
   return "current tab";
+}
+
+function throwIfAborted(signal: AbortSignal | undefined, message: string): void {
+  if (signal?.aborted) {
+    throw new Error(message);
+  }
 }
 
 function escapeRegExp(value: string): string {
