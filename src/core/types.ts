@@ -88,14 +88,23 @@ export interface RunLogEntry {
   line: string;
 }
 
+export interface RunProgress {
+  phase: "indexing" | "extracting" | "compiling" | "complete";
+  current: number;
+  total: number;
+  unit: string;
+  details?: string;
+}
+
 export interface RunEvent {
-  kind: "run-started" | "log" | "run-completed" | "run-failed";
+  kind: "run-started" | "log" | "progress" | "run-completed" | "run-failed";
   workflow: string;
   goal?: string;
   runDir: string;
   summary?: string;
   error?: string;
   logEntry?: RunLogEntry;
+  progress?: RunProgress;
 }
 
 export type RunObserver = (event: RunEvent) => void | Promise<void>;

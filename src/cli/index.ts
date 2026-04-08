@@ -6,8 +6,8 @@ import { Command } from "commander";
 
 import { ContextorOrchestrator } from "../core/orchestrator";
 import { CONTEXTOR_VERSION } from "../core/version";
-import { WorkflowResult } from "../core/types";
-import { getNpmExecutable, runCommand } from "../utils/system";
+import { RunEvent, WorkflowResult } from "../core/types";
+import { clearTerminalScreen, getNpmExecutable, runCommand } from "../utils/system";
 
 const program = new Command();
 
@@ -40,15 +40,19 @@ program
   .description("Compile a local folder into one context.md")
   .argument("<folderPath>", "Absolute or relative path to the folder")
   .option("--goal <goal>", "Goal string for context compilation", "summarize the selected local folder")
-  .option("--limit <count>", "Maximum number of file sources to include", "15")
+  .option("--limit <count>", "Maximum number of file sources to include, or 'all'", "all")
   .option("--config <path>", "Path to a Contextor config file")
   .action(async (folderPath, options) => {
     const orchestrator = await ContextorOrchestrator.create(process.cwd(), options.config);
-    const result = await orchestrator.compileFolder({
-      goal: options.goal,
-      folderPath,
-      limit: Number(options.limit),
-    });
+    const progress = createFolderProgressReporter();
+    const result = await orchestrator.compileFolder(
+      {
+        goal: options.goal,
+        folderPath,
+        limit: parseFolderLimit(options.limit),
+      },
+      progress,
+    );
     printResult(result);
   });
 
@@ -168,6 +172,7 @@ program
     const projectRoot = inferProjectRoot();
     await runCommand(getNpmExecutable(), ["install"], { cwd: projectRoot });
     await runCommand(getNpmExecutable(), ["run", "build"], { cwd: projectRoot });
+    clearTerminalScreen();
 
     const args = ["dist/cli/index.js", "tui"];
     if (options.config) {
@@ -213,4 +218,49 @@ function printResult(result: WorkflowResult): void {
 function inferProjectRoot(): string {
   const currentFile = fileURLToPath(import.meta.url);
   return path.resolve(path.dirname(currentFile), "../..");
+}
+
+function parseFolderLimit(value: string | undefined): number | undefined {
+  const normalized = value?.trim().toLowerCase();
+  if (!normalized || normalized === "all") {
+    return undefined;
+  }
+
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function createFolderProgressReporter(): (event: RunEvent) => void {
+  let active = false;
+
+  return (event: RunEvent): void => {
+    if (!process.stdout.isTTY) {
+      return;
+    }
+
+    if (event.kind === "run-started") {
+      active = true;
+      process.stdout.write(`Starting ${event.workflow} workflow...\n`);
+      return;
+    }
+
+    if (event.kind === "progress" && event.progress) {
+      active = true;
+      const total = Math.max(0, event.progress.total);
+      const current = Math.max(0, Math.min(event.progress.current, total));
+      const width = 24;
+      const ratio = total > 0 ? current / total : 0;
+      const filled = Math.round(width * ratio);
+      const bar = `[${"█".repeat(filled)}${"░".repeat(Math.max(0, width - filled))}]`;
+      const countLabel = total > 0 ? `${current}/${total} (${Math.round(ratio * 100)}%)` : "0/0 (0%)";
+      const detail = event.progress.details ? ` ${event.progress.details}` : "";
+      process.stdout.write(`\r${bar} ${countLabel} ${event.progress.unit}${detail}`);
+      return;
+    }
+
+    if ((event.kind === "run-completed" || event.kind === "run-failed") && active) {
+      process.stdout.write("\n");
+      active = false;
+    }
+  };
 }

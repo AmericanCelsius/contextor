@@ -55,7 +55,7 @@ export async function executeWorkflow(
           {
             goal: values.goal || "summarize this project folder",
             folderPath: values.folderPath,
-            limit: Number(values.limit || "15"),
+            limit: parseFolderLimit(values.limit),
           },
           observe,
         ),
@@ -100,6 +100,16 @@ export async function executeWorkflow(
     default:
       return { result: { summary: "No workflow executed." }, events };
   }
+}
+
+function parseFolderLimit(value: string | undefined): number | undefined {
+  const normalized = value?.trim().toLowerCase();
+  if (!normalized || normalized === "all") {
+    return undefined;
+  }
+
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 }
 
 export async function getFolderPathStatus(orchestrator: ContextorOrchestrator, rawValue: string): Promise<TuiPathStatus> {

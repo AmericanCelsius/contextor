@@ -15,7 +15,14 @@ export class FilesystemAdapter {
     private readonly logger: Logger,
   ) {}
 
-  async compileDirectory(folderPath: string, goal: string, limit = 15): Promise<FileSource[]> {
+  async compileDirectory(
+    folderPath: string,
+    goal: string,
+    limit?: number,
+    options: {
+      onProgress?: (progress: { phase: "indexing" | "extracting" | "complete"; current: number; total: number; details?: string }) => Promise<void> | void;
+    } = {},
+  ): Promise<FileSource[]> {
     const resolvedPath = resolveUserPath(folderPath);
     if (!(await pathExists(resolvedPath))) {
       throw new Error(`Folder does not exist: ${resolvedPath}`);
@@ -34,11 +41,25 @@ export class FilesystemAdapter {
         candidate,
         score: scoreFileCandidate(candidate, goal),
       }))
-      .sort((left, right) => right.score - left.score)
-      .slice(0, Math.max(limit * 2, 20));
+      .sort((left, right) => right.score - left.score);
+
+    const extractionTargets =
+      typeof limit === "number" && Number.isFinite(limit) && limit > 0
+        ? scored.slice(0, Math.max(limit * 2, 20))
+        : scored;
+
+    await options.onProgress?.({
+      phase: "indexing",
+      current: 0,
+      total: extractionTargets.length,
+      details:
+        typeof limit === "number" && Number.isFinite(limit) && limit > 0
+          ? `Indexed ${candidates.length} supported file(s). Extracting the top ${Math.min(extractionTargets.length, limit)} ranked candidate(s).`
+          : `Indexed ${candidates.length} supported file(s). Beginning full extraction pass.`,
+    });
 
     const sources: FileSource[] = [];
-    for (const item of scored) {
+    for (const [index, item] of extractionTargets.entries()) {
       const extractedText = await this.extractText(item.candidate.path, item.candidate.extension);
       const source: FileSource = {
         sourceType: "file",
@@ -55,13 +76,26 @@ export class FilesystemAdapter {
         score: item.score,
       };
       sources.push(source);
+
+      await options.onProgress?.({
+        phase: "extracting",
+        current: index + 1,
+        total: extractionTargets.length,
+        details: item.candidate.name,
+      });
     }
 
     const deduped = suppressDuplicateCandidates(sources)
       .sort((left, right) => right.score - left.score)
-      .slice(0, limit);
+      .slice(0, typeof limit === "number" && Number.isFinite(limit) && limit > 0 ? limit : undefined);
 
     await this.logger.info("Compiled folder sources", { count: deduped.length, scannedFiles: candidates.length });
+    await options.onProgress?.({
+      phase: "complete",
+      current: deduped.length,
+      total: deduped.length,
+      details: `Compiled ${deduped.length} file source(s).`,
+    });
     return deduped;
   }
 
@@ -128,9 +162,23 @@ export class FilesystemAdapter {
   }
 
   private async extractPdfText(filePath: string): Promise<string> {
-    const pdfParse = (await import("pdf-parse")).default as (input: Buffer) => Promise<{ text: string }>;
+    const pdfParse = (await import("pdf-parse")).default as (
+      input: Buffer,
+      options?: { version?: string },
+    ) => Promise<{ text: string }>;
+    const pdfJsModule = (await import("pdf-parse/lib/pdf.js/v2.0.550/build/pdf.js")) as {
+      VerbosityLevel?: { ERRORS?: number };
+      setVerbosityLevel?: (level: number) => void;
+    };
     const buffer = await fs.readFile(filePath);
-    const result = await pdfParse(buffer);
+    if (pdfJsModule.VerbosityLevel?.ERRORS !== undefined && pdfJsModule.setVerbosityLevel) {
+      pdfJsModule.setVerbosityLevel(pdfJsModule.VerbosityLevel.ERRORS);
+    }
+
+    const result = await withMutedConsoleWarnings(
+      () => pdfParse(buffer, { version: "v2.0.550" }),
+      [/Required "glyf" table is not found -- trying to recover\./i],
+    );
     return result.text;
   }
 
@@ -138,5 +186,23 @@ export class FilesystemAdapter {
     const mammoth = (await import("mammoth")) as { extractRawText: (input: { path: string }) => Promise<{ value: string }> };
     const result = await mammoth.extractRawText({ path: filePath });
     return result.value;
+  }
+}
+
+async function withMutedConsoleWarnings<T>(task: () => Promise<T>, patterns: RegExp[]): Promise<T> {
+  const originalWarn = console.warn;
+  console.warn = (...args: unknown[]) => {
+    const message = args.map((value) => String(value)).join(" ");
+    if (patterns.some((pattern) => pattern.test(message))) {
+      return;
+    }
+
+    originalWarn(...args);
+  };
+
+  try {
+    return await task();
+  } finally {
+    console.warn = originalWarn;
   }
 }

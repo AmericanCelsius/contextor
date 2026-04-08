@@ -77,7 +77,12 @@ export async function createRunDirectories(
     manifests: path.join(runRoot, "manifests"),
   };
 
-  await Promise.all(Object.values(directories).map((directory) => ensureDirectory(directory)));
+  await Promise.all([
+    ensureDirectory(directories.root),
+    ensureDirectory(directories.logs),
+    ensureDirectory(directories.artifacts),
+    ensureDirectory(directories.manifests),
+  ]);
   return directories;
 }
 
@@ -325,10 +330,11 @@ export async function autocompletePathInput(
 
   const entries = await fs.readdir(searchDirectory, { withFileTypes: true });
   const matches = entries
+    .filter((entry) => entry.isDirectory())
     .filter((entry) => entry.name.toLowerCase().startsWith(searchPrefix.toLowerCase()))
     .map((entry) => {
       const fullPath = path.join(searchDirectory, entry.name);
-      return entry.isDirectory() ? `${fullPath}${path.sep}` : fullPath;
+      return `${fullPath}${path.sep}`;
     })
     .sort();
 
@@ -412,10 +418,11 @@ async function listPathMatches(inputPath: string, baseDirectory: string): Promis
 
   const entries = await fs.readdir(searchDirectory, { withFileTypes: true });
   return entries
+    .filter((entry) => entry.isDirectory())
     .filter((entry) => entry.name.toLowerCase().startsWith(searchPrefix.toLowerCase()))
     .map((entry) => {
       const fullPath = path.join(searchDirectory, entry.name);
-      return entry.isDirectory() ? `${fullPath}${path.sep}` : fullPath;
+      return `${fullPath}${path.sep}`;
     })
     .sort()
     .slice(0, 12);

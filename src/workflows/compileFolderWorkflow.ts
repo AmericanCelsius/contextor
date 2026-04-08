@@ -1,7 +1,7 @@
 import { FilesystemAdapter } from "../adapters/filesystemAdapter";
 import { ContextCompiler } from "../compiler/contextCompiler";
 import { RunLogger } from "../core/logger";
-import { CompileFolderOptions, RunDirectories, WorkflowResult } from "../core/types";
+import { CompileFolderOptions, RunDirectories, RunObserver, WorkflowResult } from "../core/types";
 
 export async function runCompileFolderWorkflow(input: {
   filesystemAdapter: FilesystemAdapter;
@@ -9,11 +9,28 @@ export async function runCompileFolderWorkflow(input: {
   logger: RunLogger;
   runDirectories: RunDirectories;
   options: CompileFolderOptions;
+  observe?: RunObserver;
 }): Promise<WorkflowResult> {
   const fileSources = await input.filesystemAdapter.compileDirectory(
     input.options.folderPath,
     input.options.goal,
     input.options.limit,
+    {
+      onProgress: (progress) =>
+        input.observe?.({
+          kind: "progress",
+          workflow: "folder",
+          goal: input.options.goal,
+          runDir: input.runDirectories.root,
+          progress: {
+            phase: progress.phase,
+            current: progress.current,
+            total: progress.total,
+            unit: "files",
+            details: progress.details,
+          },
+        }),
+    },
   );
   if (fileSources.length === 0) {
     throw new Error("No supported files were found in the selected folder.");

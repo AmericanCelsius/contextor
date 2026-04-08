@@ -67,6 +67,10 @@ export interface TuiRunState {
   liveLogs?: string[];
   progressLabel?: string;
   eventCount?: number;
+  progressCurrent?: number;
+  progressTotal?: number;
+  progressUnit?: string;
+  progressPhase?: string;
 }
 
 export interface TuiInputTrace {
@@ -80,6 +84,7 @@ export interface TuiPathStatus {
   message: string;
   resolvedPath?: string;
   matches: string[];
+  recommendedPaths?: string[];
 }
 
 export interface TuiWorkflowExecutionResult {

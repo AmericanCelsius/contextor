@@ -124,6 +124,7 @@ export class ContextorOrchestrator {
         logger,
         runDirectories,
         options,
+        observe,
       });
       await observe?.({
         kind: "run-completed",
@@ -297,7 +298,22 @@ export class ContextorOrchestrator {
           : [];
 
       const fileSources = options.folderPath
-        ? await filesystemAdapter.compileDirectory(options.folderPath, options.goal, 15)
+        ? await filesystemAdapter.compileDirectory(options.folderPath, options.goal, undefined, {
+            onProgress: (progress) =>
+              observe?.({
+                kind: "progress",
+                workflow: "compile",
+                goal: options.goal,
+                runDir: runDirectories.root,
+                progress: {
+                  phase: progress.phase,
+                  current: progress.current,
+                  total: progress.total,
+                  unit: "files",
+                  details: progress.details,
+                },
+              }),
+          })
         : [];
 
       if (browserSources.length === 0 && fileSources.length === 0) {

@@ -72,6 +72,20 @@ export function QuitSplash({ tick }: { tick: number }): React.JSX.Element {
   );
 }
 
+export function ConfirmQuitPane({ tick }: { tick: number }): React.JSX.Element {
+  const frame = SCAN_FRAMES[tick % SCAN_FRAMES.length]!;
+  return (
+    <Box flexDirection="column" alignItems="center" justifyContent="center" height="100%">
+      <Panel title="QUIT CONFIRMATION" active width={72} minHeight={10}>
+        <Text color={TUI_THEME.warn}>{frame} Quit the current Contextor session?</Text>
+        <Newline />
+        <Text color={TUI_THEME.text}>Press Enter or q to confirm.</Text>
+        <Text color={TUI_THEME.muted}>Press Esc, n, or c to cancel and return to the dashboard.</Text>
+      </Panel>
+    </Box>
+  );
+}
+
 export function Panel(props: {
   title: string;
   width?: number | string;
@@ -134,7 +148,13 @@ export function WorkspacePane(props: {
   tick: number;
 }): React.JSX.Element {
   const { runState } = props;
-  const progressBar = renderProgressBar(runState.eventCount ?? 0, props.tick, runState.state === "success");
+  const progressBar = renderProgressBar(
+    runState.progressCurrent,
+    runState.progressTotal,
+    props.tick,
+    runState.state === "success",
+  );
+  const completionPulse = SIGNAL_FRAMES[props.tick % SIGNAL_FRAMES.length]!;
 
   return (
     <Panel title="MISSION CONTROL" width="100%" minHeight={24} active>
@@ -144,7 +164,9 @@ export function WorkspacePane(props: {
 
       {runState.state === "running" ? (
         <Box flexDirection="column">
-          <Text color={TUI_THEME.ok}>{progressBar}</Text>
+          <Text color={TUI_THEME.ok}>
+            {progressBar} {renderProgressNumbers(runState.progressCurrent, runState.progressTotal, runState.progressUnit)}
+          </Text>
           <Text color={TUI_THEME.text}>{runState.progressLabel || runState.message}</Text>
           {runState.runDir ? <Text color={TUI_THEME.muted}>Run: {runState.runDir}</Text> : null}
           <Text color={TUI_THEME.muted}>Navigation is locked while the workflow is executing.</Text>
@@ -170,10 +192,15 @@ export function WorkspacePane(props: {
         </Box>
       ) : runState.result ? (
         <Box flexDirection="column">
+          <Text color={TUI_THEME.ok}>{completionPulse} Workflow complete</Text>
           <Text color={TUI_THEME.ok}>{runState.result.summary}</Text>
           <Text color={TUI_THEME.text}>Run directory: {runState.result.runDir}</Text>
           <Text color={TUI_THEME.text}>Context: {runState.result.contextMarkdownPath}</Text>
           <Text color={TUI_THEME.text}>Manifest: {runState.result.manifestPath}</Text>
+          <Newline />
+          <Text color={TUI_THEME.accentSoft}>Completion Signal</Text>
+          <Text color={TUI_THEME.ok}>{renderProgressBar(runState.progressTotal, runState.progressTotal, props.tick, true)}</Text>
+          <Text color={TUI_THEME.muted}>Done. Press another command or o to open the output folder.</Text>
           <Newline />
           <Text color={TUI_THEME.accentSoft}>Artifacts</Text>
           {runState.result.artifactPaths.length === 0 ? (
@@ -205,21 +232,29 @@ export function FormPane(props: {
   submitLabel: string;
   fields: TuiFormField[];
   activeFieldIndex: number;
+  activeTextCursorIndex: number;
   insights: TuiFormInsight[];
+  suggestions: string[];
+  activeSuggestionIndex: number;
   tick: number;
 }): React.JSX.Element {
   return (
     <Panel title={props.title} width="100%" minHeight={24} active>
       {props.fields.map((field, index) => {
         const active = index === props.activeFieldIndex;
-        const displayValue = field.value.length > 0 ? field.value : field.placeholder || "";
+        const displayValue =
+          field.value.length > 0 ? field.value : field.placeholder || "";
+        const renderedValue =
+          active && field.type === "text"
+            ? renderValueWithCursor(displayValue, field.value.length > 0, props.activeTextCursorIndex)
+            : displayValue || "";
         return (
           <Box key={field.id} flexDirection="column" marginBottom={1}>
             <Text color={active ? TUI_THEME.accentSoft : TUI_THEME.title}>
               {active ? ">" : " "} {field.label}
             </Text>
             <Text color={field.value.length > 0 ? TUI_THEME.text : TUI_THEME.muted} inverse={active}>
-              {displayValue || " "}
+              {renderedValue || " "}
             </Text>
             {field.hint ? <Text color={TUI_THEME.muted}>{field.hint}</Text> : null}
           </Box>
@@ -239,10 +274,21 @@ export function FormPane(props: {
           </Box>
         ))
       )}
+      {props.suggestions.length > 0 ? (
+        <>
+          <Newline />
+          <Text color={TUI_THEME.accentSoft}>Path Suggestions</Text>
+          {props.suggestions.slice(0, 8).map((suggestion, index) => (
+            <Text key={suggestion} color={index === props.activeSuggestionIndex ? TUI_THEME.accentSoft : TUI_THEME.muted} inverse={index === props.activeSuggestionIndex}>
+              {index === props.activeSuggestionIndex ? ">" : " "} {truncate(suggestion, 94)}
+            </Text>
+          ))}
+        </>
+      ) : null}
       <Newline />
       <Text color={TUI_THEME.ok}>Enter: {props.submitLabel}</Text>
-      <Text color={TUI_THEME.muted}>Tab: autocomplete folder path or switch field • Shift+Tab: previous field</Text>
-      <Text color={TUI_THEME.muted}>Arrow keys: move/select • Esc: back • Quoted paths are accepted</Text>
+      <Text color={TUI_THEME.muted}>Tab: accept path suggestion or autocomplete • Shift+Tab: previous field</Text>
+      <Text color={TUI_THEME.muted}>Left/Right: move cursor • Up/Down: field or suggestion nav • Esc: back</Text>
     </Panel>
   );
 }
@@ -281,7 +327,7 @@ export function FooterBar(props: {
   return (
     <Box borderStyle="single" borderColor={TUI_THEME.border} paddingX={1} paddingY={0} marginTop={1} flexDirection="column">
       <Text color={TUI_THEME.muted}>
-        ↑↓ move • ←→ / Tab switch • Enter run • Esc back • r refresh • o open output • l logs • u runs • c config • b browser • q quit
+        ↑↓ move • ←→ / Tab switch • Enter run • Esc back • r refresh • o open output • l logs • u runs • c config • b browser • q confirm quit
       </Text>
       <Text color={TUI_THEME.accentSoft}>
         panel={props.panelView} {props.formMode ? "| form=active" : "| form=idle"} {props.loading ? "| refresh=busy" : ""}
@@ -410,9 +456,15 @@ function ConfigSummary({ snapshot }: { snapshot: DashboardSnapshot }): React.JSX
   );
 }
 
-function renderProgressBar(eventCount: number, tick: number, complete = false): string {
+function renderProgressBar(
+  current: number | undefined,
+  total: number | undefined,
+  tick: number,
+  complete = false,
+): string {
   const width = 18;
-  const baseProgress = complete ? 1 : Math.min(0.9, 0.12 + eventCount * 0.12);
+  const ratio = total && total > 0 ? Math.min(1, (current ?? 0) / total) : 0;
+  const baseProgress = complete ? 1 : Math.max(0.06, ratio);
   const filled = Math.max(1, Math.round(width * baseProgress));
   const pulseIndex = complete ? width - 1 : tick % width;
   const cells = Array.from({ length: width }, (_, index) => {
@@ -423,6 +475,15 @@ function renderProgressBar(eventCount: number, tick: number, complete = false): 
     return index === pulseIndex ? "▒" : "░";
   });
   return `[${cells.join("")}] ${Math.round(baseProgress * 100)}%`;
+}
+
+function renderProgressNumbers(current: number | undefined, total: number | undefined, unit = "items"): string {
+  if (!total || total <= 0) {
+    return "";
+  }
+
+  const safeCurrent = Math.min(current ?? 0, total);
+  return `${safeCurrent}/${total} (${Math.round((safeCurrent / total) * 100)}%) ${unit}`;
 }
 
 function toneColor(tone: TuiFormInsight["tone"]): string {
@@ -444,4 +505,13 @@ function truncate(value: string, maxLength: number): string {
   }
 
   return `${value.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
+}
+
+function renderValueWithCursor(value: string, hasRealValue: boolean, cursorIndex: number): string {
+  const source = value || " ";
+  const safeIndex = Math.max(0, Math.min(cursorIndex, source.length));
+  const left = source.slice(0, safeIndex);
+  const cursor = safeIndex < source.length ? source[safeIndex] : " ";
+  const right = source.slice(safeIndex + (safeIndex < source.length ? 1 : 0));
+  return `${left}${hasRealValue ? "" : ""}▏${cursor}${right}`;
 }

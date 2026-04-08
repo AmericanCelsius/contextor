@@ -4,9 +4,10 @@ import { Box, Text, useApp, useInput } from "ink";
 import { ContextorOrchestrator } from "../core/orchestrator";
 import { CONTEXTOR_VERSION } from "../core/version";
 import { BrowserPageSummary, RunEvent, WorkflowResult } from "../core/types";
+import { getRecommendedFolderPaths } from "../utils/system";
 import { TUI_ACTIONS } from "./actions";
 import { completeFolderPath, executeWorkflow, getFolderPathStatus, loadDashboardSnapshot } from "./controller";
-import { ActionMenu, BootSplash, FooterBar, FormPane, InfoPane, QuitSplash, WorkspacePane } from "./components";
+import { ActionMenu, BootSplash, ConfirmQuitPane, FooterBar, FormPane, InfoPane, QuitSplash, WorkspacePane } from "./components";
 import { TUI_THEME } from "./theme";
 import {
   DashboardSnapshot,
@@ -31,16 +32,21 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
   const [selectedActionIndex, setSelectedActionIndex] = useState(0);
   const [activePanelView, setActivePanelView] = useState<TuiPanelView>("browser");
   const [bootVisible, setBootVisible] = useState(true);
+  const [quitConfirmVisible, setQuitConfirmVisible] = useState(false);
   const [quitting, setQuitting] = useState(false);
   const [tick, setTick] = useState(0);
   const [activeFormAction, setActiveFormAction] = useState<TuiAction | null>(null);
   const [formFields, setFormFields] = useState<TuiFormField[]>([]);
   const [activeFieldIndex, setActiveFieldIndex] = useState(0);
+  const [activeTextCursorIndex, setActiveTextCursorIndex] = useState(0);
+  const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(0);
   const [lastInput, setLastInput] = useState<TuiInputTrace | null>(null);
+  const [recommendedFolderPaths, setRecommendedFolderPaths] = useState<string[]>([]);
   const [folderPathStatus, setFolderPathStatus] = useState<TuiPathStatus>({
     state: "idle",
     message: "Enter a folder path. Quotes and bracketed names are accepted.",
     matches: [],
+    recommendedPaths: [],
   });
   const [runState, setRunState] = useState<TuiRunState>({
     state: "idle",
@@ -95,6 +101,7 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
         state: "idle",
         message: "Enter a folder path. Quotes and bracketed names are accepted.",
         matches: [],
+        recommendedPaths: recommendedFolderPaths,
       });
       return;
     }
@@ -106,22 +113,33 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
             state: "idle",
             message: "Enter a folder path. Quotes and bracketed names are accepted.",
             matches: [],
+            recommendedPaths: recommendedFolderPaths,
           });
           return;
         }
 
         setFolderPathStatus((current) => ({ ...current, state: "checking", message: "Checking path..." }));
         const status = await getFolderPathStatus(props.orchestrator, folderFieldValue);
-        setFolderPathStatus(status);
+        setFolderPathStatus({ ...status, recommendedPaths: recommendedFolderPaths });
       })();
     }, 120);
 
     return () => clearTimeout(timer);
-  }, [activeFormAction?.id, folderFieldValue, props.orchestrator]);
+  }, [activeFormAction?.id, folderFieldValue, props.orchestrator, recommendedFolderPaths]);
+
+  useEffect(() => {
+    const nextSuggestions = folderPathStatus.matches.length > 0 ? folderPathStatus.matches : recommendedFolderPaths;
+    if (nextSuggestions.length === 0) {
+      setActiveSuggestionIndex(0);
+      return;
+    }
+
+    setActiveSuggestionIndex((current) => Math.min(current, nextSuggestions.length - 1));
+  }, [folderPathStatus.matches, recommendedFolderPaths]);
 
   const formInsights = useMemo(
-    () => buildFormInsights(activeFormAction, formFields, snapshot, folderPathStatus),
-    [activeFormAction, formFields, snapshot, folderPathStatus],
+    () => buildFormInsights(activeFormAction, formFields, snapshot, folderPathStatus, recommendedFolderPaths),
+    [activeFormAction, formFields, snapshot, folderPathStatus, recommendedFolderPaths],
   );
 
   useInput((input, key) => {
@@ -139,6 +157,21 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
       return;
     }
 
+    if (quitConfirmVisible) {
+      if (key.return || input === "q") {
+        recordInput(label, "Confirm quit");
+        setQuitConfirmVisible(false);
+        setQuitting(true);
+        return;
+      }
+
+      if (key.escape || input === "n" || input === "c") {
+        recordInput(label, "Cancel quit");
+        setQuitConfirmVisible(false);
+      }
+      return;
+    }
+
     if (runState.state === "running") {
       if (label) {
         recordInput(label, "Input ignored while workflow is running");
@@ -151,9 +184,15 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
       return;
     }
 
-    if (input === "q" || key.escape) {
-      recordInput(label, "Quit Contextor");
-      setQuitting(true);
+    if (input === "q") {
+      recordInput(label, "Open quit confirmation");
+      setQuitConfirmVisible(true);
+      return;
+    }
+
+    if (key.escape) {
+      recordInput(label, "Open quit confirmation");
+      setQuitConfirmVisible(true);
       return;
     }
 
@@ -271,9 +310,12 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
 
   async function handleAction(action: TuiAction): Promise<void> {
     if (action.createFields) {
+      const nextFields = action.createFields();
       setActiveFormAction(action);
-      setFormFields(action.createFields());
+      setFormFields(nextFields);
       setActiveFieldIndex(0);
+      setActiveTextCursorIndex((nextFields[0]?.value ?? "").length);
+      setActiveSuggestionIndex(0);
       setRunState({
         state: "idle",
         title: action.label,
@@ -281,6 +323,9 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
         liveLogs: [],
         eventCount: 0,
       });
+      if (action.id === "folder") {
+        void primeFolderForm(nextFields);
+      }
       return;
     }
 
@@ -307,6 +352,10 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
       progressLabel: "Preparing workflow...",
       liveLogs: [],
       eventCount: 0,
+      progressCurrent: 0,
+      progressTotal: 0,
+      progressUnit: undefined,
+      progressPhase: undefined,
     });
 
     try {
@@ -343,6 +392,25 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
     }
   }
 
+  async function primeFolderForm(initialFields: TuiFormField[]): Promise<void> {
+    const recommendations = await getRecommendedFolderPaths(props.orchestrator.getConfig().allowedDirectories);
+    setRecommendedFolderPaths(recommendations);
+
+    const currentFolderValue = findFieldValue(initialFields, "folderPath");
+    const suggestedPath = currentFolderValue || recommendations[0] || "";
+    if (!suggestedPath) {
+      return;
+    }
+
+    updateField("folderPath", suggestedPath);
+    setActiveTextCursorIndex(suggestedPath.length);
+    const status = await getFolderPathStatus(props.orchestrator, suggestedPath);
+    setFolderPathStatus({
+      ...status,
+      recommendedPaths: recommendations,
+    });
+  }
+
   function handleFormInput(
     input: string,
     key: {
@@ -371,30 +439,57 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
       setActiveFormAction(null);
       setFormFields([]);
       setActiveFieldIndex(0);
+      setActiveTextCursorIndex(0);
+      setActiveSuggestionIndex(0);
       return;
     }
 
+    const folderSuggestions = folderPathStatus.matches.length > 0 ? folderPathStatus.matches : recommendedFolderPaths;
+
     if (currentField.id === "folderPath" && key.tab && !key.shift) {
-      recordInput(label, "Autocomplete folder path");
-      void autocompleteActiveFolderPath(currentField.id);
+      if (folderSuggestions.length > 0) {
+        recordInput(label, "Accept folder suggestion");
+        void selectFolderSuggestion(folderSuggestions[activeSuggestionIndex] ?? folderSuggestions[0] ?? "");
+      } else {
+        recordInput(label, "Autocomplete folder path");
+        void autocompleteActiveFolderPath(currentField.id);
+      }
       return;
     }
 
     if (key.tab) {
       const direction = key.shift ? -1 : 1;
-      setActiveFieldIndex((current) => wrapIndex(current + direction, formFields.length));
+      const nextIndex = wrapIndex(activeFieldIndex + direction, formFields.length);
+      setActiveFieldIndex(nextIndex);
+      setActiveTextCursorIndex((formFields[nextIndex]?.value ?? "").length);
       recordInput(label, key.shift ? "Move to previous field" : "Move to next field");
       return;
     }
 
+    if (currentField.id === "folderPath" && currentField.type === "text" && folderSuggestions.length > 0 && key.upArrow) {
+      setActiveSuggestionIndex((current) => wrapIndex(current - 1, folderSuggestions.length));
+      recordInput(label, "Move to previous folder suggestion");
+      return;
+    }
+
+    if (currentField.id === "folderPath" && currentField.type === "text" && folderSuggestions.length > 0 && key.downArrow) {
+      setActiveSuggestionIndex((current) => wrapIndex(current + 1, folderSuggestions.length));
+      recordInput(label, "Move to next folder suggestion");
+      return;
+    }
+
     if (key.upArrow && currentField.type === "text") {
-      setActiveFieldIndex((current) => wrapIndex(current - 1, formFields.length));
+      const nextIndex = wrapIndex(activeFieldIndex - 1, formFields.length);
+      setActiveFieldIndex(nextIndex);
+      setActiveTextCursorIndex((formFields[nextIndex]?.value ?? "").length);
       recordInput(label, "Move to previous field");
       return;
     }
 
     if (key.downArrow && currentField.type === "text") {
-      setActiveFieldIndex((current) => wrapIndex(current + 1, formFields.length));
+      const nextIndex = wrapIndex(activeFieldIndex + 1, formFields.length);
+      setActiveFieldIndex(nextIndex);
+      setActiveTextCursorIndex((formFields[nextIndex]?.value ?? "").length);
       recordInput(label, "Move to next field");
       return;
     }
@@ -423,8 +518,34 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
       return;
     }
 
-    if (key.backspace || key.delete) {
-      updateField(currentField.id, currentField.value.slice(0, -1));
+    if (key.leftArrow) {
+      setActiveTextCursorIndex((current) => Math.max(0, current - 1));
+      recordInput(label, "Move cursor left");
+      return;
+    }
+
+    if (key.rightArrow) {
+      setActiveTextCursorIndex((current) => Math.min(currentField.value.length, current + 1));
+      recordInput(label, "Move cursor right");
+      return;
+    }
+
+    if (key.backspace) {
+      if (activeTextCursorIndex === 0) {
+        return;
+      }
+
+      const nextValue =
+        currentField.value.slice(0, activeTextCursorIndex - 1) + currentField.value.slice(activeTextCursorIndex);
+      updateField(currentField.id, nextValue);
+      setActiveTextCursorIndex((current) => Math.max(0, current - 1));
+      return;
+    }
+
+    if (key.delete) {
+      const nextValue =
+        currentField.value.slice(0, activeTextCursorIndex) + currentField.value.slice(activeTextCursorIndex + 1);
+      updateField(currentField.id, nextValue);
       return;
     }
 
@@ -433,7 +554,10 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
     }
 
     if (input.length > 0 && input !== "\t" && input !== "\r" && input !== "\n") {
-      updateField(currentField.id, `${currentField.value}${input}`);
+      const nextValue =
+        currentField.value.slice(0, activeTextCursorIndex) + input + currentField.value.slice(activeTextCursorIndex);
+      updateField(currentField.id, nextValue);
+      setActiveTextCursorIndex((current) => current + input.length);
     }
   }
 
@@ -441,10 +565,26 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
     const currentValue = findFieldValue(formFields, fieldId);
     const completion = await completeFolderPath(props.orchestrator, currentValue);
     updateField(fieldId, completion.value);
+    setActiveTextCursorIndex(completion.value.length);
     setFolderPathStatus({
       ...completion.status,
       message: completion.status.message,
       matches: completion.status.matches,
+      recommendedPaths: recommendedFolderPaths,
+    });
+  }
+
+  async function selectFolderSuggestion(nextValue: string): Promise<void> {
+    if (!nextValue) {
+      return;
+    }
+
+    updateField("folderPath", nextValue);
+    setActiveTextCursorIndex(nextValue.length);
+    const status = await getFolderPathStatus(props.orchestrator, nextValue);
+    setFolderPathStatus({
+      ...status,
+      recommendedPaths: recommendedFolderPaths,
     });
   }
 
@@ -467,6 +607,10 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
       progressLabel: "Preparing workflow...",
       liveLogs: [],
       eventCount: 0,
+      progressCurrent: 0,
+      progressTotal: 0,
+      progressUnit: undefined,
+      progressPhase: undefined,
     });
 
     try {
@@ -474,6 +618,8 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
       setActiveFormAction(null);
       setFormFields([]);
       setActiveFieldIndex(0);
+      setActiveTextCursorIndex(0);
+      setActiveSuggestionIndex(0);
       await refreshDashboard();
 
       if (isWorkflowResult(execution.result)) {
@@ -486,6 +632,9 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
           result: workflowResult,
           runDir: workflowResult.runDir,
           progressLabel: "Workflow complete.",
+          progressCurrent: workflowResult.artifactPaths.length > 0 ? workflowResult.artifactPaths.length : current.progressCurrent,
+          progressTotal: current.progressTotal,
+          progressUnit: current.progressUnit,
         }));
       } else {
         setRunState({
@@ -516,6 +665,23 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
           progressLabel: `Starting ${event.workflow} workflow...`,
           liveLogs: [],
           eventCount: 1,
+          progressCurrent: 0,
+          progressTotal: 0,
+          progressUnit: undefined,
+          progressPhase: undefined,
+        };
+      }
+
+      if (event.kind === "progress") {
+        return {
+          ...current,
+          state: "running",
+          runDir: event.runDir,
+          progressLabel: event.progress?.details || current.progressLabel || current.message,
+          progressCurrent: event.progress?.current ?? current.progressCurrent,
+          progressTotal: event.progress?.total ?? current.progressTotal,
+          progressUnit: event.progress?.unit ?? current.progressUnit,
+          progressPhase: event.progress?.phase ?? current.progressPhase,
         };
       }
 
@@ -553,6 +719,10 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
     return <BootSplash tick={tick} />;
   }
 
+  if (quitConfirmVisible) {
+    return <ConfirmQuitPane tick={tick} />;
+  }
+
   if (quitting) {
     return <QuitSplash tick={tick} />;
   }
@@ -569,7 +739,10 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
               submitLabel={activeFormAction.submitLabel || "Submit"}
               fields={formFields}
               activeFieldIndex={activeFieldIndex}
+              activeTextCursorIndex={activeTextCursorIndex}
               insights={formInsights}
+              suggestions={folderPathStatus.matches.length > 0 ? folderPathStatus.matches : recommendedFolderPaths}
+              activeSuggestionIndex={activeSuggestionIndex}
               tick={tick}
             />
           ) : (
@@ -611,6 +784,7 @@ function buildFormInsights(
   fields: TuiFormField[],
   snapshot: DashboardSnapshot | null,
   folderPathStatus: TuiPathStatus,
+  recommendedFolderPaths: string[],
 ): TuiFormInsight[] {
   if (!action) {
     return [];
@@ -619,6 +793,7 @@ function buildFormInsights(
   const insights: TuiFormInsight[] = [];
 
   if (action.id === "folder") {
+    const limitValue = findFieldValue(fields, "limit") || "all";
     insights.push({
       tone: folderPathTone(folderPathStatus.state),
       label: "Folder path sensor",
@@ -631,9 +806,26 @@ function buildFormInsights(
       insights.push({
         tone: "neutral",
         label: "Autocomplete candidates",
-        details: folderPathStatus.matches.join(" | "),
+        details: folderPathStatus.matches.slice(0, 3).join(" | "),
       });
     }
+
+    if (recommendedFolderPaths.length > 0) {
+      insights.push({
+        tone: "neutral",
+        label: "Recommended path seed",
+        details: recommendedFolderPaths[0]!,
+      });
+    }
+
+    insights.push({
+      tone: limitValue.trim().toLowerCase() === "all" ? "ok" : "neutral",
+      label: "File limit",
+      details:
+        limitValue.trim().toLowerCase() === "all"
+          ? "all supported files will be scanned and ranked."
+          : `Contextor will stop after the top ${limitValue.trim()} file sources.`,
+    });
   }
 
   if (!snapshot) {
