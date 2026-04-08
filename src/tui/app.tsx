@@ -4,7 +4,7 @@ import { Box, Text, useApp, useInput } from "ink";
 import { ContextorOrchestrator } from "../core/orchestrator";
 import { CONTEXTOR_VERSION } from "../core/version";
 import { BrowserPageSummary, RunEvent, WorkflowResult } from "../core/types";
-import { clearTerminalViewport, getRecommendedFolderPaths } from "../utils/system";
+import { clearTerminalViewport, getRecommendedFolderPaths, getRuntimeEnvironmentInfo } from "../utils/system";
 import { TUI_ACTIONS } from "./actions";
 import { completeFolderPath, executeWorkflow, getFolderPathStatus, loadDashboardSnapshot } from "./controller";
 import { ActionMenu, BootSplash, ConfirmActionPane, ConfirmQuitPane, FooterBar, FormPane, InfoPane, QuitSplash, WorkspacePane } from "./components";
@@ -154,6 +154,7 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
     () => buildFormInsights(activeFormAction, formFields, snapshot, folderPathStatus, recommendedFolderPaths),
     [activeFormAction, formFields, snapshot, folderPathStatus, recommendedFolderPaths],
   );
+  const runtimeInfo = useMemo(() => getRuntimeEnvironmentInfo(), [tick]);
 
   useInput((input, key) => {
     const label = describeInput(input, key);
@@ -865,7 +866,13 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
           <InfoPane view={activePanelView} snapshot={snapshot} tick={tick} />
         </Box>
       </Box>
-      <FooterBar panelView={activePanelView} formMode={Boolean(activeFormAction)} loading={loadingSnapshot} lastInput={lastInput} />
+      <FooterBar
+        panelView={activePanelView}
+        formMode={Boolean(activeFormAction)}
+        loading={loadingSnapshot}
+        runtimeInfo={runtimeInfo}
+        lastInput={lastInput}
+      />
     </Box>
   );
 }

@@ -60,6 +60,14 @@ export interface ContextCompileInput {
   manifestExtras?: Record<string, unknown>;
 }
 
+export interface RuntimeEnvironmentInfo {
+  localTimestamp: string;
+  utcTimestamp: string;
+  timeZone: string;
+  approximateLocation?: string;
+  approximateLocationNote?: string;
+}
+
 export interface ContextCompileResult {
   runDir: string;
   contextMarkdownPath: string;

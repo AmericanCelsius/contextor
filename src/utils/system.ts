@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 
+import { RuntimeEnvironmentInfo } from "../core/types";
 import { detectInstalledBrowserExecutable } from "./files";
 
 export function openPathInShell(targetPath: string): void {
@@ -47,6 +48,23 @@ export function clearTerminalScreen(): void {
 
 export function clearTerminalViewport(): void {
   process.stdout.write("\u001B[2J\u001B[3J\u001B[H");
+}
+
+export function getRuntimeEnvironmentInfo(now = new Date()): RuntimeEnvironmentInfo {
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  const locale = Intl.DateTimeFormat().resolvedOptions().locale || "en-US";
+  const region = extractRegionCode(locale);
+  const city = extractCityFromTimeZone(timeZone);
+  const country = region ? getCountryName(region) : inferCountryFromTimeZone(timeZone);
+  const approximateLocation = city && country ? `${city}, ${country}` : city || country || undefined;
+
+  return {
+    localTimestamp: formatLocalTimestamp(now),
+    utcTimestamp: formatUtcTimestamp(now),
+    timeZone,
+    approximateLocation,
+    approximateLocationNote: approximateLocation ? "Approximate location inferred from system time zone/locale." : undefined,
+  };
 }
 
 export async function launchChromeDebugBrowser(projectRoot: string, attachUrl: string, userDataDir?: string): Promise<string> {
@@ -161,4 +179,69 @@ async function fileExists(targetPath: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+function formatLocalTimestamp(value: Date): string {
+  const year = value.getFullYear();
+  const month = padTwo(value.getMonth() + 1);
+  const day = padTwo(value.getDate());
+  const hours = padTwo(value.getHours());
+  const minutes = padTwo(value.getMinutes());
+  const seconds = padTwo(value.getSeconds());
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds} ${timeZone}`;
+}
+
+function formatUtcTimestamp(value: Date): string {
+  const year = value.getUTCFullYear();
+  const month = padTwo(value.getUTCMonth() + 1);
+  const day = padTwo(value.getUTCDate());
+  const hours = padTwo(value.getUTCHours());
+  const minutes = padTwo(value.getUTCMinutes());
+  const seconds = padTwo(value.getUTCSeconds());
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds} UTC+00:00`;
+}
+
+function padTwo(value: number): string {
+  return String(value).padStart(2, "0");
+}
+
+function extractRegionCode(locale: string): string | undefined {
+  const match = locale.match(/[-_]([A-Z]{2})\b/);
+  return match?.[1];
+}
+
+function getCountryName(region: string): string | undefined {
+  try {
+    const displayNames = new Intl.DisplayNames(["en"], { type: "region" });
+    return displayNames.of(region) || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function extractCityFromTimeZone(timeZone: string): string | undefined {
+  const segments = timeZone.split("/");
+  const citySegment = segments.at(-1);
+  if (!citySegment || citySegment === "UTC" || citySegment === "GMT") {
+    return undefined;
+  }
+
+  return citySegment.replace(/_/g, " ");
+}
+
+function inferCountryFromTimeZone(timeZone: string): string | undefined {
+  const explicit: Record<string, string> = {
+    "America/New_York": "United States",
+    "America/Chicago": "United States",
+    "America/Denver": "United States",
+    "America/Los_Angeles": "United States",
+    "America/Phoenix": "United States",
+    "America/Anchorage": "United States",
+    "Pacific/Honolulu": "United States",
+    "Europe/London": "United Kingdom",
+    "Europe/Paris": "France",
+    "Asia/Tokyo": "Japan",
+  };
+  return explicit[timeZone];
 }

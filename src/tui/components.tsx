@@ -3,6 +3,7 @@ import path from "node:path";
 import React from "react";
 import { Box, Newline, Text } from "ink";
 
+import { RuntimeEnvironmentInfo } from "../core/types";
 import { CONTEXTOR_VERSION } from "../core/version";
 import { TUI_THEME } from "./theme";
 import {
@@ -366,6 +367,7 @@ export function FooterBar(props: {
   panelView: TuiPanelView;
   formMode: boolean;
   loading: boolean;
+  runtimeInfo: RuntimeEnvironmentInfo;
   lastInput?: TuiInputTrace | null;
 }): React.JSX.Element {
   return (
@@ -376,6 +378,10 @@ export function FooterBar(props: {
       <Text color={TUI_THEME.accentSoft}>
         panel={props.panelView} {props.formMode ? "| form=active" : "| form=idle"} {props.loading ? "| refresh=busy" : ""}
         {props.lastInput ? ` | last=${props.lastInput.label} @ ${props.lastInput.at}` : ""}
+      </Text>
+      <Text color={TUI_THEME.muted}>
+        local={props.runtimeInfo.localTimestamp} | utc={props.runtimeInfo.utcTimestamp}
+        {props.runtimeInfo.approximateLocation ? ` | approx-location=${props.runtimeInfo.approximateLocation}` : ""}
       </Text>
     </Box>
   );

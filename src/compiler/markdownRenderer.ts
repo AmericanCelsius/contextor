@@ -1,7 +1,7 @@
-import { BrowserSource, ContextCompileInput, FileSource } from "../core/types";
+import { BrowserSource, ContextCompileInput, FileSource, RuntimeEnvironmentInfo } from "../core/types";
 import { renderKeyValueBlock } from "../utils/markdown";
 
-export function renderContextMarkdown(input: ContextCompileInput): string {
+export function renderContextMarkdown(input: ContextCompileInput, runtimeInfo: RuntimeEnvironmentInfo): string {
   const executiveSummary = buildExecutiveSummary(input);
   const keyFindings = buildKeyFindings(input);
   const browserSection =
@@ -28,6 +28,10 @@ ${input.goal}
 # Executive Summary
 
 ${executiveSummary}
+
+# Runtime Context
+
+${renderRuntimeContext(runtimeInfo)}
 
 # Key Findings
 
@@ -56,6 +60,24 @@ ${actionableNotes}
 - Browser source count: ${input.browserSources.length}
 - File source count: ${input.fileSources.length}
 `;
+}
+
+function renderRuntimeContext(runtimeInfo: RuntimeEnvironmentInfo): string {
+  const lines = [
+    `- Local time: ${runtimeInfo.localTimestamp}`,
+    `- UTC time: ${runtimeInfo.utcTimestamp}`,
+    `- Time zone: ${runtimeInfo.timeZone}`,
+  ];
+
+  if (runtimeInfo.approximateLocation) {
+    lines.push(`- Approximate location: ${runtimeInfo.approximateLocation}`);
+  }
+
+  if (runtimeInfo.approximateLocationNote) {
+    lines.push(`- Location note: ${runtimeInfo.approximateLocationNote}`);
+  }
+
+  return lines.join("\n");
 }
 
 function buildExecutiveSummary(input: ContextCompileInput): string {

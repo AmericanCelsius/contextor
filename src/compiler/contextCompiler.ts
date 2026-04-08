@@ -5,6 +5,7 @@ import { RunLogger } from "../core/logger";
 import { ContextCompileInput, ContextCompileResult, RunDirectories } from "../core/types";
 import { markdownToPlainText } from "../utils/markdown";
 import { writeJsonFile } from "../utils/files";
+import { getRuntimeEnvironmentInfo } from "../utils/system";
 import { renderContextMarkdown } from "./markdownRenderer";
 
 export class ContextCompiler {
@@ -15,8 +16,9 @@ export class ContextCompiler {
     const contextTextPath = path.join(runDirectories.root, "context.txt");
     const manifestPath = path.join(runDirectories.manifests, "sources.json");
     const runManifestPath = path.join(runDirectories.manifests, "run.json");
+    const runtimeInfo = getRuntimeEnvironmentInfo();
 
-    const markdown = renderContextMarkdown(input);
+    const markdown = renderContextMarkdown(input, runtimeInfo);
     const text = markdownToPlainText(markdown);
     const artifactPaths = input.browserSources.flatMap((source) => Object.values(source.artifacts));
 
@@ -31,6 +33,7 @@ export class ContextCompiler {
         fileSources: input.fileSources,
         communicationNotes: input.communicationNotes,
         actionableNotes: input.actionableNotes,
+        runtime: runtimeInfo,
         extras: input.manifestExtras ?? {},
       }),
       writeJsonFile(runManifestPath, {
@@ -39,6 +42,7 @@ export class ContextCompiler {
         workflow: input.workflow,
         goal: input.goal,
         runDir: runDirectories.root,
+        runtime: runtimeInfo,
       }),
     ]);
 
