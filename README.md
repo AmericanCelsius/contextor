@@ -1,6 +1,34 @@
 # Contextor
 
-Contextor is a local-first context aggregation and browser automation tool for macOS. In `v0.2.2`, the primary GUI surface is a true terminal-contained TUI built with Ink. The old browser dashboard is no longer the main interface.
+Contextor is a local-first terminal workspace for collecting browser context and local directory context into reviewable output bundles.
+
+In `v0.2.2`, the primary GUI surface is a true terminal-contained TUI built with Ink. The old browser dashboard is no longer the main interface.
+
+Contextor is designed around a few practical operator workflows:
+
+- capture currently open Chrome tabs into a dense `context.md`
+- summarize a folder into a compact context bundle
+- export a literal folder copy into aggregated markdown/text
+- expand and export dynamic pages such as LinkedIn
+- run read-only browser audits such as the Instagram non-mutuals review flow
+
+Contextor is not meant to be a vague autonomous agent swarm. It is a debuggable local tool with explicit workflows, timestamped outputs, logs, manifests, and safety defaults.
+
+## Product Surfaces
+
+- `contextor start` / `contextor launch`: one-line bootstrap into the TUI
+- `contextor tui`: open the terminal dashboard directly
+- direct CLI commands such as `tabs`, `folder`, `copy-folder`, `page-export`, and `social-audit`
+- `browser-status`: inspect Chrome attach health before running tab-based workflows
+
+## Two Different Folder Workflows
+
+Contextor now intentionally separates two folder jobs:
+
+- `Compile Folder`: ranks and summarizes files into a dense context bundle for downstream LLM use
+- `Copy Folder As Markdown/Text`: performs a literal directory export with recursive file listing plus aggregated file bodies
+
+Use `Compile Folder` when you want signal compression. Use `Copy Folder As Markdown/Text` when you want a more faithful textual copy of the directory contents.
 
 ## What Changed In v0.2.2
 
@@ -13,6 +41,10 @@ Contextor is a local-first context aggregation and browser automation tool for m
 - Added descriptive run folder names: `output/runs/<timestamp>__<workflow>__<goal-slug>/`
 - Added `contextor launch` and `contextor start` as one-line bootstrap commands
 - Kept the existing core workflows intact and read-only by default
+- Fixed the TUI browser-status list so duplicate browser targets no longer emit React key warnings into the active terminal
+- Made the TUI open the `output/runs` container directly from the output command instead of jumping to an unexpected location
+- Added abort support for the tabs workflow inside the TUI
+- Added a lightweight `Task Console Preview` panel scaffold for future connector-backed task entry without enabling risky automation yet
 
 The TUI is designed as a retro-futuristic command console with panel layout, keyboard navigation, recent runs, logs, config summary, browser attach status, and animated workflow feedback.
 
@@ -88,12 +120,13 @@ contextor gui
 The TUI supports:
 
 - Compile Open Tabs
+- Task Console Preview
 - Compile Folder
 - Copy Folder As Markdown/Text
 - Export Current Page
 - Instagram Non-Mutuals Audit
 - Launch Chrome Debug Browser
-- Open Latest Output Folder
+- Open Output Runs Folder
 - View Latest Logs
 - View Recent Runs
 - View Current Config Summary
@@ -107,11 +140,10 @@ Keyboard-first controls:
 - `Tab` switch inspect panels, or autocomplete the folder path field when it is active
 - `Left` / `Right` move the cursor inside active text fields
 - `Ctrl+U` clear the active text field
-- `x` open the abort prompt while a folder compile is running
-- `x` also aborts the literal directory-copy workflow once it is running
+- `x` opens the abort prompt while tabs, folder compile, or directory-copy runs are active
 - `g` launch the Chrome debug browser helper from inside the TUI
 - `r` refresh
-- `o` open the latest output folder
+- `o` open the `output/runs` folder
 - `l` focus logs
 - `u` focus recent runs
 - `c` focus config
@@ -129,6 +161,8 @@ contextor dashboard
 contextor launch
 contextor start
 ```
+
+The TUI also includes a non-executing `Task Console Preview` panel for future long-running connector-backed task entry. In `v0.2.2` it is only a scaffold and does not perform agentic browser control.
 
 ### Browser Status
 

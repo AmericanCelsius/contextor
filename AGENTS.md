@@ -21,6 +21,7 @@ Primary surfaces:
 ## Key Workflows
 
 - `tabs`: compile open tabs into `context.md`
+- `task-console`: preview future connector-backed task entry inside the TUI without executing it yet
 - `folder`: compile a folder into `context.md`
 - `copy-folder`: export a literal directory copy into aggregated markdown/text outputs
 - `page-export`: export current page to markdown, text, PDF
@@ -64,9 +65,12 @@ npm run smoke:folder
 - preserve the input-echo layer so the last command/navigation key remains visible
 - keep folder path autocomplete and quoted-path handling working
 - preserve quit confirmation on `q`
+- avoid React key collisions in repeated TUI lists so warnings do not bleed into the active terminal
+- keep fixed-width TUI panels clamped to the current terminal width
 - keep folder compile defaulted to `all` unless the operator explicitly narrows it
 - preserve the folder compile confirmation step before the run starts
 - keep folder compile abortable from the TUI once it is running
+- keep tabs abortable from the TUI once a capture run has started
 - keep the literal directory-copy workflow separate from the summarizer, while reusing the same folder-path autocomplete UX
 - keep the TUI browser-launch helper available for separate Chrome debug profiles
 

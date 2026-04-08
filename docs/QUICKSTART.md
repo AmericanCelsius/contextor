@@ -38,6 +38,8 @@ contextor launch
 contextor start
 ```
 
+The TUI now includes a `Task Console Preview` action as a future-facing panel scaffold. It does not execute agentic browser-control tasks in `v0.2.2`.
+
 ## Useful First Commands
 
 Check browser attach status:
@@ -77,6 +79,11 @@ Literal directory copy notes:
 - it reuses the same path autocomplete and confirmation flow as the summarizer
 - it writes aggregated file bodies to root `context.md` and `context.txt`
 - while the workflow is running, press `x` to open the abort prompt
+
+Tabs workflow notes:
+
+- inside the TUI, `x` now opens the abort prompt for tab capture runs too
+- `o` opens the `output/runs` container folder
 
 Export the current LinkedIn page:
 
