@@ -38,7 +38,7 @@ contextor launch
 contextor start
 ```
 
-The TUI now includes a `Task Console Preview` action as a future-facing panel scaffold. It does not execute agentic browser-control tasks in `v0.2.2`.
+The TUI now includes a `Prompt Console` action as a future-facing panel scaffold. It does not execute arbitrary agentic browser-control tasks in `v0.2.2`.
 
 ## Useful First Commands
 
@@ -108,5 +108,5 @@ output/runs/<timestamp>__<workflow>__<goal-slug>/
 ## Safety Defaults
 
 - browser workflows are read-only by default
-- Instagram audit is read-only and dry-run
+- `contextor social-audit` remains as a legacy CLI fallback and is still read-only and dry-run
 - no email sending, portal submission, deletion, or account-changing actions

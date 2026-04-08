@@ -2,7 +2,7 @@ import React from "react";
 import { render } from "ink";
 
 import { ContextorOrchestrator } from "../core/orchestrator";
-import { clearTerminalViewport } from "../utils/system";
+import { clearTerminalViewport, installTuiRuntimeSink } from "../utils/system";
 import { ContextorTuiApp } from "./app";
 
 interface StartTuiOptions {
@@ -16,12 +16,14 @@ export async function startTui(options: StartTuiOptions): Promise<void> {
   }
 
   const orchestrator = await ContextorOrchestrator.create(options.projectRoot, options.configPath);
+  const restoreRuntimeSink = await installTuiRuntimeSink(orchestrator.getConfig().outputDirectory);
   const restoreTerminal = enterAlternateScreen();
   const instance = render(<ContextorTuiApp orchestrator={orchestrator} />);
 
   try {
     await instance.waitUntilExit();
   } finally {
+    restoreRuntimeSink();
     restoreTerminal();
   }
 }

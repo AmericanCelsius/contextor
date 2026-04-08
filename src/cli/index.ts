@@ -117,7 +117,7 @@ program
 
 program
   .command("social-audit")
-  .description("Run a read-only social audit against browser tabs already open in Chrome")
+  .description("Legacy read-only Instagram audit fallback preserved outside the main TUI")
   .option("--platform <platform>", "Supported platform", "instagram")
   .option("--mode <mode>", "Supported audit mode", "non-mutuals")
   .option("--dry-run", "Keep the workflow in review-only mode", true)
@@ -126,6 +126,10 @@ program
   .option("--goal <goal>", "Goal string for audit context", "review likely Instagram non-mutual accounts in read-only mode")
   .option("--config <path>", "Path to a Contextor config file")
   .action(async (options) => {
+    console.error(
+      "`contextor social-audit` is a legacy fallback in v0.2.2. The Instagram audit has been removed from the main TUI while the broader prompt console is prepared.",
+    );
+
     if (options.platform !== "instagram") {
       throw new Error("Phase 1 only supports --platform instagram.");
     }
@@ -157,10 +161,19 @@ program
     console.log(`Mode: ${diagnostics.browserMode}`);
     console.log(`Endpoint reachable: ${diagnostics.endpointReachable}`);
     console.log(`Usable tabs: ${diagnostics.usableTargets}/${diagnostics.totalTargets}`);
+    if (diagnostics.ignoredTargets > 0) {
+      console.log(`Filtered noisy targets: ${diagnostics.ignoredTargets}`);
+    }
     if (diagnostics.issues.length > 0) {
       console.log("Issues:");
       for (const issue of diagnostics.issues) {
         console.log(`- ${issue}`);
+      }
+    }
+    if (diagnostics.detectedProfiles.length > 0) {
+      console.log("Detected local Chrome profiles:");
+      for (const profile of diagnostics.detectedProfiles) {
+        console.log(`- ${profile}`);
       }
     }
     if (diagnostics.pages.length > 0) {

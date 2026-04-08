@@ -50,6 +50,78 @@ export function clearTerminalViewport(): void {
   process.stdout.write("\u001B[2J\u001B[3J\u001B[H");
 }
 
+export async function installTuiRuntimeSink(outputDirectory: string): Promise<() => void> {
+  const sinkDirectory = await resolveTuiRuntimeSinkDirectory(outputDirectory);
+  const sinkPath = path.join(sinkDirectory, "tui-runtime.log");
+
+  const originalWarn = console.warn.bind(console);
+  const originalError = console.error.bind(console);
+  const originalStderrWrite = process.stderr.write.bind(process.stderr);
+
+  let queue = Promise.resolve();
+  const append = (channel: "warn" | "error" | "stderr", chunks: unknown[]): void => {
+    const message = chunks
+      .map((chunk) => (typeof chunk === "string" ? chunk : JSON.stringify(chunk)))
+      .join(" ")
+      .trim();
+
+    if (!message) {
+      return;
+    }
+
+    queue = queue
+      .then(() => fs.appendFile(sinkPath, `[${new Date().toISOString()}] [${channel.toUpperCase()}] ${message}\n`, "utf8"))
+      .catch(() => undefined);
+  };
+
+  console.warn = (...args: unknown[]) => {
+    append("warn", args);
+  };
+
+  console.error = (...args: unknown[]) => {
+    append("error", args);
+  };
+
+  process.stderr.write = ((chunk: unknown, encoding?: unknown, callback?: unknown) => {
+    append("stderr", [chunk]);
+    if (typeof encoding === "function") {
+      encoding();
+    }
+    if (typeof callback === "function") {
+      callback();
+    }
+    return true;
+  }) as typeof process.stderr.write;
+
+  return () => {
+    console.warn = originalWarn;
+    console.error = originalError;
+    process.stderr.write = originalStderrWrite;
+  };
+}
+
+async function resolveTuiRuntimeSinkDirectory(outputDirectory: string): Promise<string> {
+  const preferredPath = path.join(outputDirectory, ".contextor-gui");
+  const fallbackPath = path.join(outputDirectory, ".contextor-runtime");
+
+  try {
+    const stat = await fs.stat(preferredPath);
+    if (stat.isDirectory()) {
+      return preferredPath;
+    }
+  } catch (error) {
+    if (!isMissingPathError(error)) {
+      throw error;
+    }
+
+    await fs.mkdir(preferredPath, { recursive: true });
+    return preferredPath;
+  }
+
+  await fs.mkdir(fallbackPath, { recursive: true });
+  return fallbackPath;
+}
+
 export function getRuntimeEnvironmentInfo(now = new Date()): RuntimeEnvironmentInfo {
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   const locale = Intl.DateTimeFormat().resolvedOptions().locale || "en-US";
@@ -161,6 +233,10 @@ function launchDetached(command: string, args: string[], cwd?: string): void {
     env: process.env,
   });
   child.unref();
+}
+
+function isMissingPathError(error: unknown): boolean {
+  return error instanceof Error && "code" in error && error.code === "ENOENT";
 }
 
 function parseAttachPort(attachUrl: string): number {

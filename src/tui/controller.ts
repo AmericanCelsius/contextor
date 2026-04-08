@@ -53,7 +53,7 @@ export async function executeWorkflow(
     case "task-console":
       return {
         result: {
-          summary: `Task console preview captured: ${truncate(values.taskPrompt || "No task prompt provided.", 96)}. Connector-backed execution is not enabled in v0.2.2.`,
+          summary: `Prompt console staged (${values.taskScope || "browser"} / ${values.taskMode || "preview"}): ${truncate(values.taskPrompt || "No task prompt provided.", 96)}. Arbitrary connector-backed execution is not enabled in v0.2.2.`,
         },
         events,
       };

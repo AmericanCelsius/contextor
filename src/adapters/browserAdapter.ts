@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 
 import { Browser, BrowserContext, Page, chromium } from "playwright-core";
@@ -62,6 +63,7 @@ export class BrowserAdapter {
   async inspectConnection(selection: PageSelection = { all: true }): Promise<BrowserConnectionDiagnostics> {
     const selectionLabel = formatSelectionLabel(selection);
     const pageTargets = await this.fetchAttachTargets();
+    const detectedProfiles = await detectLocalChromeProfiles();
     const diagnostics: BrowserConnectionDiagnostics = {
       attachUrl: this.config.browser.attachUrl,
       browserMode: this.config.browser.mode,
@@ -72,8 +74,10 @@ export class BrowserAdapter {
       totalTargets: pageTargets?.length ?? 0,
       usableTargets: 0,
       matchingTargets: 0,
+      ignoredTargets: 0,
       selectionLabel,
       pages: [],
+      detectedProfiles,
       issues: [],
       suggestions: [],
     };
@@ -87,6 +91,14 @@ export class BrowserAdapter {
       diagnostics.suggestions.push(
         "Open-tab workflows do not use the attach-or-launch fallback because a fresh automation profile does not contain your existing tabs.",
       );
+      if (detectedProfiles.length > 0) {
+        diagnostics.suggestions.push(
+          `Detected local Chrome profiles on disk: ${detectedProfiles.slice(0, 5).join(", ")}.`,
+        );
+        diagnostics.suggestions.push(
+          "Launch the specific profile containing the tabs you want Contextor to inspect with remote debugging enabled.",
+        );
+      }
       return diagnostics;
     }
 
@@ -95,6 +107,7 @@ export class BrowserAdapter {
 
     diagnostics.usableTargets = usableTargets.length;
     diagnostics.matchingTargets = matchingTargets.length;
+    diagnostics.ignoredTargets = pageTargets.length - usableTargets.length;
     diagnostics.pages = usableTargets.slice(0, 16);
 
     if (usableTargets.length === 0) {
@@ -105,6 +118,16 @@ export class BrowserAdapter {
     if (selection.match && matchingTargets.length === 0) {
       diagnostics.issues.push(`No reachable tabs matched /${selection.match.source}/i.`);
       diagnostics.suggestions.push("Adjust the match pattern or inspect the browser status panel for the current tab titles.");
+    }
+
+    if (diagnostics.ignoredTargets > 0) {
+      diagnostics.issues.push(
+        `Ignored ${diagnostics.ignoredTargets} noisy or non-operator browser target(s) from the selection pool.`,
+      );
+    }
+
+    if (detectedProfiles.length > 1) {
+      diagnostics.suggestions.push(`Local Chrome profiles detected: ${detectedProfiles.slice(0, 5).join(", ")}.`);
     }
 
     return diagnostics;
@@ -557,7 +580,16 @@ export class BrowserAdapter {
 }
 
 function isUsablePage(url: string): boolean {
-  return /^(https?|file):/i.test(url);
+  return /^(https?|file):/i.test(url) && !isIgnoredAttachTarget(url);
+}
+
+function isIgnoredAttachTarget(url: string): boolean {
+  const ignoredPatterns = [
+    /:\/\/tpc\.googlesyndication\.com\/sodar\//i,
+    /:\/\/knowledge\.workspace\.google\.com\/admin\/compliance\/choose-a-geographic-location-for-your-data/i,
+  ];
+
+  return ignoredPatterns.some((pattern) => pattern.test(url));
 }
 
 async function filterPagesByPattern(pages: Page[], pattern: RegExp): Promise<Page[]> {
@@ -610,6 +642,33 @@ function throwIfAborted(signal: AbortSignal | undefined, message: string): void 
   if (signal?.aborted) {
     throw new Error(message);
   }
+}
+
+async function detectLocalChromeProfiles(): Promise<string[]> {
+  const roots = [
+    path.join(os.homedir(), "Library", "Application Support", "Google", "Chrome"),
+    path.join(os.homedir(), "Library", "Application Support", "Chromium"),
+  ];
+  const discovered = new Set<string>();
+
+  for (const root of roots) {
+    try {
+      const entries = await fs.readdir(root, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isDirectory()) {
+          continue;
+        }
+
+        if (/^(Default|Profile \d+|Guest Profile|Person \d+)$/i.test(entry.name)) {
+          discovered.add(entry.name);
+        }
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return Array.from(discovered).sort();
 }
 
 function escapeRegExp(value: string): string {

@@ -846,6 +846,7 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
         <Box marginLeft={compactLayout ? 0 : 1} marginTop={compactLayout ? 1 : 0} flexGrow={1} flexDirection="column">
           {activeFormAction ? (
             <FormPane
+              actionId={activeFormAction.id}
               title={activeFormAction.formTitle || activeFormAction.label}
               submitLabel={activeFormAction.submitLabel || "Submit"}
               fields={formFields}
@@ -946,7 +947,7 @@ function buildFormInsights(
       });
     }
 
-    if (action.id === "directory-copy") {
+  if (action.id === "directory-copy") {
       const formatValue = findFieldValue(fields, "format") || "both";
       insights.push({
         tone: "ok",
@@ -957,6 +958,42 @@ function buildFormInsights(
             : formatValue === "txt"
               ? "Text is the requested primary format. Contextor also writes a markdown companion."
               : "Contextor will write both markdown and text root outputs for the directory copy.",
+      });
+    }
+  }
+
+  if (action.id === "task-console") {
+    const taskScope = findFieldValue(fields, "taskScope") || "browser";
+    const taskMode = findFieldValue(fields, "taskMode") || "preview";
+    const taskPrompt = findFieldValue(fields, "taskPrompt");
+    insights.push({
+      tone: taskMode === "preview" ? "warn" : "neutral",
+      label: "Execution state",
+      details:
+        taskMode === "preview"
+          ? "Prompt console is staged only in v0.2.2. No arbitrary agent execution is enabled yet."
+          : "Future agentic mode is planned, but not connected in this release.",
+    });
+    insights.push({
+      tone: snapshot?.browser.endpointReachable ? "ok" : "warn",
+      label: "Available context surface",
+      details:
+        taskScope === "folder"
+          ? "Folder-first mission selected. Reuse the folder workflows when connectors arrive."
+          : taskScope === "hybrid"
+            ? `${snapshot?.browser.pages.length ?? 0} browser tab(s) currently visible plus local folder workflows.`
+            : `${snapshot?.browser.pages.length ?? 0} browser tab(s) currently visible for a future browser-first task.`,
+    });
+    insights.push({
+      tone: "warn",
+      label: "Legacy Instagram audit",
+      details: "Removed from the main dashboard path. The fallback workflow remains in code and CLI if needed later.",
+    });
+    if (taskPrompt.trim()) {
+      insights.push({
+        tone: "ok",
+        label: "Prompt length",
+        details: `${taskPrompt.trim().length} character(s) staged in the mission prompt.`,
       });
     }
   }
@@ -986,21 +1023,6 @@ function buildFormInsights(
       details: firstPage
         ? `${firstPage.title || firstPage.url} :: ${firstPage.url}`
         : "No attached page is visible yet.",
-    });
-  }
-
-  if (action.id === "instagram-audit") {
-    const instagramPages = snapshot.browser.pages.filter((page) => /instagram/i.test(`${page.title} ${page.url}`));
-    insights.push({
-      tone: instagramPages.length > 0 ? "ok" : "warn",
-      label: "Instagram context preview",
-      details:
-        instagramPages.length > 0
-          ? `${instagramPages.length} Instagram tab(s) visible: ${instagramPages
-              .slice(0, 4)
-              .map((page) => page.title || page.url)
-              .join(" | ")}`
-          : "Open follower/following views in the attached browser before running the audit.",
     });
   }
 

@@ -21,11 +21,11 @@ Primary surfaces:
 ## Key Workflows
 
 - `tabs`: compile open tabs into `context.md`
-- `task-console`: preview future connector-backed task entry inside the TUI without executing it yet
+- `task-console`: prompt-console scaffold for future arbitrary connector-backed task entry inside the TUI
 - `folder`: compile a folder into `context.md`
 - `copy-folder`: export a literal directory copy into aggregated markdown/text outputs
 - `page-export`: export current page to markdown, text, PDF
-- `social-audit`: read-only Instagram non-mutuals audit
+- `social-audit`: legacy read-only Instagram audit fallback kept outside the main TUI
 - `browser-status`: inspect CDP/browser attach health
 - `tui`: launch the main terminal dashboard
 - `launch` / `start`: install, build, then launch the TUI from the project root
@@ -73,11 +73,12 @@ npm run smoke:folder
 - keep tabs abortable from the TUI once a capture run has started
 - keep the literal directory-copy workflow separate from the summarizer, while reusing the same folder-path autocomplete UX
 - keep the TUI browser-launch helper available for separate Chrome debug profiles
+- keep the main TUI moving away from Instagram-specific panels and toward a broader prompt-console surface without deleting fallback audit logic
 
 ## Safety Notes
 
 - keep communication and portal workflows read-only
-- keep Instagram audit review-only unless explicitly expanded in a later milestone
+- keep the preserved Instagram audit fallback review-only unless explicitly expanded in a later milestone
 - preserve logging and output manifests
 - respect `allowedDirectories`
 

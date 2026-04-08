@@ -1,226 +1,140 @@
 # Contextor
 
-Contextor is a local-first terminal workspace for collecting browser context and local directory context into reviewable output bundles.
+Contextor is a local-first terminal workspace for collecting, structuring, and operationalizing context.
 
-In `v0.2.2`, the primary GUI surface is a true terminal-contained TUI built with Ink. The old browser dashboard is no longer the main interface.
+At its core, Contextor turns scattered tabs, files, folders, pages, notes, and future connected systems into dense, reviewable output bundles that are actually useful for downstream reasoning. Today, that means browser context capture, folder compilation, page export, literal directory copy, browser diagnostics, and browser-based review workflows. Over time, the goal is for Contextor to grow into a broader **context and workflow operating layer** that can support founders, operators, and small teams as they research, triage, summarize, verify, and prepare work across many systems.
 
-Contextor is designed around a few practical operator workflows:
+Contextor is designed to become a serious **browser-first, debuggable, terminal-native workflow machine** that can later connect to stronger agentic runtimes, coding-agent harnesses, research tools, and long-running execution layers.
 
-- capture currently open Chrome tabs into a dense `context.md`
-- summarize a folder into a compact context bundle
-- export a literal folder copy into aggregated markdown/text
-- expand and export dynamic pages such as LinkedIn
-- run read-only browser audits such as the Instagram non-mutuals review flow
+---
 
-Contextor is not meant to be a vague autonomous agent swarm. It is a debuggable local tool with explicit workflows, timestamped outputs, logs, manifests, and safety defaults.
+## Table of Contents
 
-## Product Surfaces
+- [What Contextor Is](#what-contextor-is)
+- [Why Contextor Exists](#why-contextor-exists)
+- [Current Product State](#current-product-state)
+- [What Contextor Can Do Right Now](#what-contextor-can-do-right-now)
+- [Terminal UI Overview](#terminal-ui-overview)
+- [TUI Navigation and Keybinds](#tui-navigation-and-keybinds)
+- [CLI Workflows](#cli-workflows)
+- [Output Model](#output-model)
+- [Current Architecture](#current-architecture)
+- [Current Dependencies](#current-dependencies)
+- [Planned Connectors and Agentic Integrations](#planned-connectors-and-agentic-integrations)
+- [Where Claw Code Fits](#where-claw-code-fits)
+- [Startup Use Case](#startup-use-case)
+- [Deployment Model](#deployment-model)
+- [Roadmap](#roadmap)
+- [Install and Run](#install-and-run)
+- [Final Positioning](#final-positioning)
 
-- `contextor start` / `contextor launch`: one-line bootstrap into the TUI
-- `contextor tui`: open the terminal dashboard directly
-- direct CLI commands such as `tabs`, `folder`, `copy-folder`, `page-export`, and `social-audit`
-- `browser-status`: inspect Chrome attach health before running tab-based workflows
+---
 
-## Two Different Folder Workflows
+## What Contextor Is
 
-Contextor now intentionally separates two folder jobs:
+Contextor should be understood as:
 
-- `Compile Folder`: ranks and summarizes files into a dense context bundle for downstream LLM use
-- `Copy Folder As Markdown/Text`: performs a literal directory export with recursive file listing plus aggregated file bodies
+- a **local-first context compiler**
+- a **browser-first workflow console**
+- a **terminal-based operator workspace**
+- a **reviewable artifact generator**
+- a **future agentic integration hub**
 
-Use `Compile Folder` when you want signal compression. Use `Copy Folder As Markdown/Text` when you want a more faithful textual copy of the directory contents.
+It is meant to sit between:
 
-## What Changed In v0.2.2
+- browsers
+- local folders
+- documents
+- external research
+- operator workflows
+- future connected tools
+- downstream LLM reasoning
 
-- Preserved the `v0.2.1` TUI as the baseline and moved the new directory-copy work into `v0.2.2`
-- Added animated startup, shutdown, run-progress, browser-connect, and path-validation indicators
-- Added live input echo so the last navigation or command key is always visible
-- Added folder-path autocomplete, recommended Finder/current working directory seeds, cursor movement, and quoted-path normalization for TUI path entry
-- Made folder compile default to `File Limit = all`, with progress feedback in both the TUI and `contextor folder`
-- Added `Copy Folder As Markdown/Text`, a separate literal directory-export workflow that aggregates recursive file bodies instead of summarizing them
-- Added descriptive run folder names: `output/runs/<timestamp>__<workflow>__<goal-slug>/`
-- Added `contextor launch` and `contextor start` as one-line bootstrap commands
-- Kept the existing core workflows intact and read-only by default
-- Fixed the TUI browser-status list so duplicate browser targets no longer emit React key warnings into the active terminal
-- Made the TUI open the `output/runs` container directly from the output command instead of jumping to an unexpected location
-- Added abort support for the tabs workflow inside the TUI
-- Added a lightweight `Task Console Preview` panel scaffold for future connector-backed task entry without enabling risky automation yet
+The simplest useful mental model is:
 
-The TUI is designed as a retro-futuristic command console with panel layout, keyboard navigation, recent runs, logs, config summary, browser attach status, and animated workflow feedback.
+> **Contextor is the operating system for context.**
 
-## Install
+Not the model itself.  
+Not the browser itself.  
+Not the founder.  
+Not the business.  
 
-```bash
-npm install
-npm run build
-```
+It is the layer that helps all of those work better together.
 
-Optional:
+---
 
-```bash
-npm link
-```
+## Why Contextor Exists
 
-## First Run
+Most people still use LLMs by manually stuffing in:
 
-### 1. Launch Chrome With Remote Debugging
+- random copied text
+- incomplete browser tabs
+- half-remembered files
+- messy notes
+- disconnected threads
+- weak prompt structure
+- poorly organized research
 
-Open-tab workflows require attaching to the real Chrome session you want Contextor to inspect.
+That works sometimes, but it does not scale.
 
-Close Chrome completely, then launch it from Terminal:
+Contextor exists to solve that problem by making context collection and context packaging systematic.
 
-```bash
-"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --remote-debugging-port=9222
-```
+Instead of relying on manual copy-paste, Contextor is built to:
 
-If you only want a separate automation profile:
+- gather context across tabs, files, and pages
+- preserve provenance and structure
+- compress noise into signal
+- create reusable context packs
+- make research and execution repeatable
+- improve downstream LLM performance by giving models stronger, cleaner inputs
 
-```bash
-./scripts/open-chrome-debug.sh
-```
+In simple terms:
 
-Important:
+> Contextor turns “too many sources, too little structure” into “one clean operating context.”
 
-- The dedicated script launches a separate profile and does not include your existing tabs.
-- `tabs`, `page-export`, and `social-audit` are attach-oriented workflows. They do not silently treat a fresh automation profile as your already-open browsing session.
+---
 
-### 2. Launch The TUI
+## Current Product State
 
-```bash
-contextor tui
-```
+Contextor has already moved beyond the earlier browser-served dashboard concept.
 
-Or without `npm link`:
+The main interface is now a **terminal-contained TUI** built for keyboard-first use. The current product has a working command-line interface, structured run outputs, folder and page workflows, browser diagnostics, and a retro-futuristic terminal command-console presentation.
 
-```bash
-node dist/cli/index.js tui
-```
+This means Contextor is already useful as:
 
-You can also use:
+- a personal research assistant shell
+- a browser workflow console
+- a folder summarizer
+- a page exporter
+- a context pack generator
+- a basis for future agentic workflow expansion
 
-```bash
-contextor dashboard
-```
+---
 
-One-line bootstrap:
+## What Contextor Can Do Right Now
 
-```bash
-contextor launch
-contextor start
-```
+### Browser context workflows
+- compile currently open Chrome or Chromium tabs into a dense `context.md`
+- capture either the current tab, all tabs, or matched tabs
+- inspect browser attach health before running tab workflows
+- export dynamic pages such as LinkedIn to markdown, text, and PDF
+- use repeated expansion and scroll passes for dynamic page capture
 
-Deprecated alias:
+### Folder and file workflows
+- compile a folder into a compressed context bundle
+- scan recursively through supported files
+- rank files by relevance and recency
+- suppress duplicate content
+- create a literal directory copy as aggregated markdown and text
+- export a faithful textual snapshot of a directory for downstream LLM use
 
-```bash
-contextor gui
-```
+### Review and browser audit workflows
+- stage future arbitrary operator prompts in the prompt console
+- inspect output folders and run logs from inside the TUI
+- verify configuration and browser state before launching workflows
 
-### 3. Use The Command Grid
-
-The TUI supports:
-
-- Compile Open Tabs
-- Task Console Preview
-- Compile Folder
-- Copy Folder As Markdown/Text
-- Export Current Page
-- Instagram Non-Mutuals Audit
-- Launch Chrome Debug Browser
-- Open Output Runs Folder
-- View Latest Logs
-- View Recent Runs
-- View Current Config Summary
-
-Keyboard-first controls:
-
-- `↑` / `↓` select action
-- `Enter` run or open a form
-- `Enter` on the folder form opens a confirmation panel before the compile starts
-- `Enter` on the directory-copy form opens a confirmation panel before the export starts
-- `Tab` switch inspect panels, or autocomplete the folder path field when it is active
-- `Left` / `Right` move the cursor inside active text fields
-- `Ctrl+U` clear the active text field
-- `x` opens the abort prompt while tabs, folder compile, or directory-copy runs are active
-- `g` launch the Chrome debug browser helper from inside the TUI
-- `r` refresh
-- `o` open the `output/runs` folder
-- `l` focus logs
-- `u` focus recent runs
-- `c` focus config
-- `b` focus browser status
-- `Esc` back out of forms
-- `q` open the quit confirmation prompt
-
-## CLI Reference
-
-### TUI
-
-```bash
-contextor tui
-contextor dashboard
-contextor launch
-contextor start
-```
-
-The TUI also includes a non-executing `Task Console Preview` panel for future long-running connector-backed task entry. In `v0.2.2` it is only a scaffold and does not perform agentic browser control.
-
-### Browser Status
-
-```bash
-contextor browser-status
-```
-
-This prints:
-
-- attach URL
-- current browser mode
-- whether the CDP endpoint is reachable
-- usable tab count
-- current attach issues
-
-### Tabs
-
-```bash
-contextor tabs --all --goal "summarize my current browser context"
-contextor tabs --current
-contextor tabs --match "brightspace|gradescope|edstem"
-```
-
-Behavior:
-
-- `--all` captures all attached open tabs
-- `--match` matches against both URL and title
-- if Chrome is not actually exposing the CDP endpoint, Contextor now fails with an explicit attach error instead of the older vague “No browser tabs matched”
-
-### Folder
-
-```bash
-contextor folder "/absolute/path/to/folder" --goal "summarize this project folder"
-```
-
-Default behavior:
-
-- scans all supported files unless you explicitly pass `--limit <count>`
-- shows a live progress bar in direct CLI mode
-- the TUI shows a confirmation step before the folder compile starts
-- once running, the TUI exposes a cancel prompt for the folder workflow
-
-### Literal Directory Copy
-
-```bash
-contextor copy-folder "/absolute/path/to/folder" --goal "create a literal directory copy for downstream review"
-```
-
-Behavior:
-
-- keeps `Compile Folder` separate from the literal copier workflow
-- reuses the same TUI folder-path autocomplete, path validation, and confirmation flow
-- recursively scans the selected directory and aggregates readable file bodies into root `context.md` and `context.txt`
-- attempts text extraction for common document formats and generic UTF-8 readable files
-- skips binary-looking files with explicit notes in the aggregated output and manifest
-
-Supported file types:
-
+### Supported file types
+Current filesystem support includes:
 - `.txt`
 - `.md`
 - `.pdf`
@@ -228,118 +142,559 @@ Supported file types:
 - `.csv`
 - `.docx`
 
-### Page Export
+### Current strengths
+- high-signal context generation
+- reviewable artifacts
+- reproducible outputs
+- strong browser-first orientation
+- dense operator workflow UX
+- useful for project prep, research, and context packaging
 
+---
+
+## Terminal UI Overview
+
+The TUI is the main user-facing product surface.
+
+It is designed like a retro-futuristic local command console and is meant to feel:
+
+- fast
+- dense
+- keyboard-first
+- operator-friendly
+- visually distinctive
+- more like a command console than a web dashboard
+
+The interface is organized into a few major regions.
+
+### 1. Header bar
+The top bar shows:
+- Contextor version
+- console identity/status
+- browser status
+- input echo / animation state
+
+### 2. Command Grid
+The left panel lists the main available actions.
+
+This is the main action menu and currently includes entries such as:
+- Compile Open Tabs
+- Prompt Console
+- Compile Folder
+- Copy Folder As Markdown/Text
+- Export Current Page
+- Launch Chrome Debug Browser
+- Open Output Runs Folder
+- View Latest Logs
+- View Recent Runs
+- View Current Config Summary
+
+### 3. Mission Control panel
+The center panel explains the selected workflow and acts as the primary action/description surface.
+
+It typically shows:
+- the selected workflow name
+- what the workflow does
+- workflow notes
+- execution hints
+- what the next step is
+
+### 4. Intel / Browser panel
+The right-side panel acts as a browser status and operational intel panel.
+
+It typically shows:
+- browser attach state
+- attach mode
+- attach URL
+- visible tabs
+- issues
+- suggestions
+- scopes or sample contexts
+
+### 5. Footer / keybind strip
+The bottom panel acts as a live operator legend.
+
+It shows:
+- keybind hints
+- active panel state
+- panel or form focus
+- local time and environment hints
+- current session context
+
+This layout is one of the major strengths of Contextor because it gives the project a distinct operator-console identity rather than a generic utility feel.
+
+---
+
+## TUI Navigation and Keybinds
+
+The TUI is designed for keyboard-first operation.
+
+### Primary movement
+- `↑` / `↓` move through command selections
+- `Enter` run the selected action or open a workflow form
+- `Tab` switch inspect panels or autocomplete path fields
+- `Left` / `Right` move the cursor inside active text fields
+- `Ctrl+U` clear the active text field
+
+### Focus and panel shortcuts
+- `l` focus logs
+- `u` focus recent runs
+- `c` focus config
+- `b` focus browser status
+
+### Runtime controls
+- `x` open the abort prompt for active workflows
+- `g` launch the Chrome debug helper
+- `r` refresh
+- `o` open the `output/runs` folder
+
+### Form and session control
+- `Esc` back out of forms
+- `q` open the quit confirmation prompt
+
+### Navigation philosophy
+The TUI is meant to let an operator move quickly between:
+- selecting a job
+- understanding the job
+- validating browser state
+- launching the job
+- reviewing the output
+- inspecting logs
+- moving to the next task
+
+That workflow matters because Contextor is not just a one-off utility. It is meant to become a reusable command center.
+
+---
+
+## CLI Workflows
+
+Contextor also ships with direct CLI workflows for operators who want more explicit command execution.
+
+### Prompt console
+
+The TUI now includes a **Prompt Console** that acts as the future-facing operator prompt box.
+
+It currently:
+- stages a mission prompt in a Claude-Code-style console surface
+- lets the operator choose a rough future execution scope
+- keeps execution in preview-only mode
+- prepares the main dashboard for broader arbitrary agent tasks later
+
+It does **not** execute arbitrary browser-control or multi-step agentic tasks in `v0.2.2`.
+
+### TUI launch
+```bash
+contextor tui
+contextor dashboard
+contextor launch
+contextor start
+```
+
+### Browser diagnostics
+```bash
+contextor browser-status
+```
+
+### Tabs
+```bash
+contextor tabs --all --goal "summarize my current browser context"
+contextor tabs --current
+contextor tabs --match "brightspace|gradescope|edstem"
+```
+
+### Folder compile
+```bash
+contextor folder "/absolute/path/to/folder" --goal "summarize this project folder"
+```
+
+### Literal directory copy
+```bash
+contextor copy-folder "/absolute/path/to/folder" --goal "create a literal directory copy for downstream review"
+```
+
+### Page export
 ```bash
 contextor page-export --current --mode linkedin --goal "export this LinkedIn page"
 ```
 
-Exports:
-
-- markdown
-- text
-- PDF
-
-### Social Audit
-
+### Social audit fallback
 ```bash
 contextor social-audit --platform instagram --mode non-mutuals --dry-run
 ```
 
-Still read-only in `v0.2.2`.
+This logic is preserved as a legacy CLI fallback, but the Instagram audit has been removed from the main TUI command grid while the broader prompt console path is prepared.
 
-## Output Structure
+These workflows make Contextor useful both as:
+- a terminal application
+- a scriptable tool
+- a later orchestration target for agentic systems
 
-Each run writes to:
+---
+
+## Output Model
+
+One of Contextor’s most important design choices is that every run generates structured output.
+
+Typical outputs include:
+- `context.md`
+- `context.txt`
+- `logs/run.log`
+- workflow artifacts
+- source manifests
+- page exports
+- review bundles
+
+A typical run path looks like:
 
 ```text
 output/runs/<timestamp>__<workflow>__<goal-slug>/
 ```
 
-With artifacts such as:
+This output-first design matters because it gives Contextor:
 
-```text
-context.md
-context.txt
-logs/run.log
-artifacts/*.md
-artifacts/*.txt
-artifacts/*.pdf
-manifests/sources.json
-```
+- reproducibility
+- inspectability
+- easy downstream reuse
+- easy debugging
+- clean handoff into ChatGPT and other LLMs
+- operator confidence in what was actually captured
 
-Instagram audit runs also write their audit artifacts in the same run bundle.
+---
 
-## Browser Attach Notes
+## Current Architecture
 
-The attach URL is configured in:
+Contextor’s architecture is best thought of in layers.
 
-```text
-config/contextor.config.json
-```
+### 1. Control layer
+How the user interacts with the system:
+- terminal TUI
+- CLI
+- future voice surface
+- future remote trigger surfaces
 
-Current default:
+### 2. Orchestration layer
+How workflows are routed:
+- browser context workflows
+- folder compile workflows
+- page export workflows
+- startup research workflows
+- future assignment and status workflows
+- future scheduling and job queue logic
 
-```json
-{
-  "browser": {
-    "attachUrl": "http://127.0.0.1:9222",
-    "mode": "attach-or-launch"
-  }
-}
-```
+### 3. Tool layer
+The execution primitives:
+- browser automation
+- file parsing
+- text extraction
+- HTML to Markdown conversion
+- future external connectors
+- future computer-use tools
 
-Operational reality for the current product:
+### 4. Reasoning layer
+How summarization and synthesis happen:
+- current structured workflows
+- OpenAI API integration path
+- Anthropic API integration path
+- future optional local-model support
 
-- open-tab workflows require a real attachable Chrome session
-- the TUI browser panel and `browser-status` command make attach failures visible
-- attach failure messaging now explains what to relaunch and why
-- Contextor never closes the user’s attached Chrome session
+### 5. Storage / artifacts layer
+What Contextor writes and preserves:
+- output bundles
+- logs
+- manifests
+- page artifacts
+- review packs
+- future indexed memory
 
-## Safety Defaults
+This layered structure is what gives Contextor room to grow into stronger agentic behavior later.
 
-Contextor remains:
+---
 
-- local-first
-- read-only by default
-- no email sending
-- no portal submission
-- no deleting or archiving
-- no account-changing social actions
-- logging and manifest generation are preserved for each run
+## Current Dependencies
 
-## TUI Notes
+The current codebase already depends on a practical set of tools that make the present product work.
 
-The TUI is built with Ink and custom terminal panels. `@inkjs/ui` was evaluated as part of the integration path, but the shipped interface relies primarily on custom Ink components. `TerminalTextEffects` was used as animation inspiration, but the shipped runtime remains Node.js and TypeScript rather than embedding the Python engine directly.
+### Runtime dependencies
+- **commander**: CLI command parsing
+- **express**: current local server/runtime support
+- **mammoth**: `.docx` extraction
+- **pdf-parse**: PDF extraction
+- **playwright-core**: browser automation backbone
+- **turndown**: HTML to Markdown conversion
 
-Implemented visual polish:
+### Development dependencies
+- **typescript**
+- **tsx**
+- relevant `@types/*` packages for typed development
 
-- alternate-screen terminal containment
-- retro command-console panel styling
-- startup and shutdown animation sequences
-- animated run-progress and browser/path indicators
-- live input echo for navigation and command keys
-- folder-path autocomplete and validation hints
+### Effective UI stack
+The broader current UI/runtime picture includes:
+- **Ink** for terminal UI rendering
+- custom terminal panels
+- `@inkjs/ui` as an evaluated component path
+- **TerminalTextEffects** as animation inspiration
+- **Node.js + TypeScript** as the primary application runtime
 
-Not implemented:
+### Why these dependencies matter
+Together, these dependencies let Contextor:
+- drive browsers
+- parse documents
+- normalize text
+- render a rich terminal UI
+- run as a structured CLI/TUI tool rather than a loose script pile
 
-- external Python animation runtime
-- browser-based GUI as the primary surface
+---
 
-## Development
+## Planned Connectors and Agentic Integrations
 
+Contextor’s long-term direction is not to become every agent framework at once. It is to stay strong at the core while selectively preparing for more powerful orchestration and execution systems.
+
+### Browser execution connectors
+- **Playwright** as the primary browser execution layer
+- **Puppeteer** as a secondary / fallback browser option
+
+### Reasoning connectors
+- **OpenAI API**
+- **Anthropic API**
+- future optional local-model fallback
+
+### Research and data connectors
+Potential future connector targets include:
+- Gmail / webmail
+- Drive / file stores
+- portal connectors
+- startup research pipelines
+- search and enrichment layers
+- note systems
+- future task and reporting pipelines
+
+### Agentic reference and integration targets
+Contextor should continue tracking and learning from:
+- **OpenClaw**
+- **OpenManus**
+- **Manus**
+- **Claude Code**
+- **Cline**
+- **Perplexity**
+- **Claw Code**
+
+These do not all need to become hard dependencies. In many cases they are better thought of as:
+- reference architectures
+- execution models
+- harness ideas
+- orchestration inspirations
+- future interoperability targets
+
+---
+
+## Where Claw Code Fits
+
+Claw Code should be explicitly included in Contextor’s future development picture.
+
+### Why it matters
+Claw Code represents a useful coding-agent runtime and harness pattern. It helps frame how agent loops, command execution, CLI-native agent UX, and developer-facing task systems can be structured.
+
+### What it is useful for
+- understanding agent loop execution
+- understanding tool invocation flow
+- studying CLI-native agent harness behavior
+- exploring how coding-agent workflows can complement context workflows
+
+### How it fits inside Contextor’s roadmap
+Claw Code is **not** the primary browser-first execution layer. It should not replace Playwright or the core context-collection engine.
+
+Instead, it fits as:
+- a future coding-agent reference
+- a possible integration-adjacent developer workflow tool
+- a bridge between context compilation and technical execution workflows
+
+That gives Contextor a path to support both:
+- information / research / browser workflows
+- coding / implementation / technical operator workflows
+
+---
+
+## Startup Use Case
+
+Contextor becomes much more important once you think of it as startup infrastructure rather than just a personal utility.
+
+A startup lives inside information overload:
+- market research
+- competitor intelligence
+- customer notes
+- emails
+- strategy docs
+- product plans
+- team chats
+- investor notes
+- research tabs
+- execution threads
+
+Contextor is meant to become the system that organizes that chaos.
+
+### What this means in practice
+Once properly connected to future agentic implementations, Contextor can support:
+
+- market research
+- competitor sweeps
+- founder briefing packs
+- document ingestion
+- opportunity synthesis
+- customer thread extraction
+- recurring research summaries
+- internal knowledge compression
+- pre-decision operating briefs
+- startup-grade context packs before product, strategy, or outreach work
+
+This is one of the biggest reasons the project matters.
+
+---
+
+## Deployment Model
+
+The recommended future deployment model is a split setup.
+
+### MacBook
+Acts as the:
+- daily-driver machine
+- control plane
+- operator console
+- review and launch surface
+
+### Windows PC
+Acts as the:
+- long-running agent hub
+- heavier execution node
+- recurring job runner
+- future remote automation host
+
+### Cloud APIs
+Act as the:
+- reasoning layer
+- summarization layer
+- synthesis layer
+- future planning and orchestration support
+
+### Why this deployment matters
+This setup gives Contextor:
+- heavier automation on a dedicated machine
+- cleaner recurring execution
+- remote launch and review from the daily-driver machine
+- a solid path toward founder/operator workflows and future startup operations
+
+---
+
+## Roadmap
+
+Contextor’s roadmap should be understood as staged expansion rather than random feature accumulation.
+
+### Phase 1 — Harden the core
+Focus on:
+- browser workflows
+- folder compilation
+- page export
+- browser diagnostics
+- TUI usability
+- output quality
+- better context density
+
+### Phase 2 — Startup-grade reporting and sweeps
+Focus on:
+- recurring research flows
+- daily or weekly summaries
+- status-check workflows
+- richer output bundles
+- operator briefing packs
+
+### Phase 3 — Dedicated agent hub model
+Focus on:
+- remote execution
+- Windows-hosted long-running jobs
+- MacBook control-plane workflows
+- recurring job orchestration
+
+### Phase 4 — Stronger agentic integration
+Focus on:
+- OpenAI / Anthropic reasoning layers
+- future browser-side operator tools
+- future connector-backed workflows
+- agent routing and orchestration patterns
+- OpenClaw / OpenManus / Manus style inspirations
+
+### Phase 5 — Coding-agent adjacency
+Focus on:
+- Claw Code
+- Claude Code-inspired harness patterns
+- developer-facing workflow augmentation
+- technical execution paired with context compilation
+
+### Phase 6 — Broader operating layer
+Focus on:
+- richer startup operating intelligence
+- founder dashboards
+- better memory/indexing
+- recurring internal intelligence workflows
+- multi-surface control
+
+---
+
+## Install and Run
+
+### Install
 ```bash
 npm install
-npm run typecheck
 npm run build
-npm run smoke:folder
 ```
 
-Useful local commands:
+Optional:
+```bash
+npm link
+```
+
+### Launch the TUI
+```bash
+contextor tui
+```
+
+or
 
 ```bash
-node dist/cli/index.js tui
-node dist/cli/index.js launch
-node dist/cli/index.js browser-status
-node dist/cli/index.js tabs --all --goal "summarize my current browser context"
+contextor start
+contextor launch
 ```
+
+### Typical browser setup
+Launch Chrome with remote debugging:
+
+```bash
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --remote-debugging-port=9222
+```
+
+### Common workflows
+```bash
+contextor browser-status
+contextor tabs --all --goal "summarize my current browser context"
+contextor folder "/absolute/path/to/folder" --goal "summarize this project folder"
+contextor copy-folder "/absolute/path/to/folder" --goal "create a literal directory copy for downstream review"
+contextor page-export --current --mode linkedin --goal "export this LinkedIn page"
+contextor social-audit --platform instagram --mode non-mutuals --dry-run
+```
+
+---
+
+## Final Positioning
+
+Contextor is a serious local-first context and workflow system.
+
+Today, it is a strong terminal tool for collecting, structuring, exporting, and reviewing context.
+
+Tomorrow, it can become foundational infrastructure for high-context work across projects, startups, research, operations, and future businesses — especially once connected to stronger agentic implementations, browser operators, reasoning APIs, workflow schedulers, research connectors, and developer-facing execution harnesses like Claw Code where appropriate.
+
+The right way to understand the project is:
+
+- browser-first
+- context-first
+- output-first
+- operator-first
+- extensible toward agentic systems
+- built to become a durable layer for real work

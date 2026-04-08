@@ -21,11 +21,14 @@ const SCAN_FRAMES = ["[>....]", "[=>...]", "[==>..]", "[===>.]", "[====>]", "[.=
 const SIGNAL_FRAMES = ["●○○", "●●○", "●●●", "○●●"];
 
 export function BootSplash({ tick }: { tick: number }): React.JSX.Element {
+  const terminalWidth = process.stdout.columns ?? 120;
   const frame = tick % 2;
   const beacon = SCAN_FRAMES[tick % SCAN_FRAMES.length]!;
   const stars = frame === 0 ? "·  *   ·  *" : "*  ·   *  ·";
   const art =
-    frame === 0
+    terminalWidth < 76
+      ? ["  CONTEXTOR  ", "  terminal context console  "]
+      : frame === 0
       ? [
           "   ______            __            __            ",
           "  / ____/___  ____  / /____  _  __/ /_____  _____",
@@ -187,21 +190,28 @@ export function WorkspacePane(props: {
 
   return (
     <Panel title="MISSION CONTROL" width="100%" minHeight={24} active>
-      <Text color={TUI_THEME.accentSoft}>{props.selectedAction.label}</Text>
+      <Text color={TUI_THEME.accentSoft} inverse>{props.selectedAction.label}</Text>
       <Text color={TUI_THEME.muted}>{props.selectedAction.description}</Text>
       <Newline />
 
       {runState.state === "running" ? (
         <Box flexDirection="column">
-          <Text color={TUI_THEME.accentSoft}>Progress</Text>
-          <Text color={TUI_THEME.ok}>{progressBar}</Text>
-          <Text color={TUI_THEME.text}>
-            {renderProgressNumbers(runState.progressCurrent, runState.progressTotal, runState.progressUnit)}
-          </Text>
+          <Box borderStyle="double" borderColor={runState.abortRequested ? TUI_THEME.warn : TUI_THEME.accent} paddingX={1} paddingY={0} flexDirection="column" marginBottom={1}>
+            <Text color={runState.abortRequested ? TUI_THEME.warn : TUI_THEME.accentSoft} inverse>
+              {runState.abortRequested ? " ABORT PENDING " : " ACTIVE COMPILATION "}
+            </Text>
+            <Text color={TUI_THEME.ok}>{progressBar}</Text>
+            <Text color={TUI_THEME.text} inverse>
+              {renderProgressNumbers(runState.progressCurrent, runState.progressTotal, runState.progressUnit)}
+            </Text>
+            {runState.progressPhase ? (
+              <Text color={TUI_THEME.accentSoft}>PHASE :: {String(runState.progressPhase).toUpperCase()}</Text>
+            ) : null}
+            <Text color={TUI_THEME.text}>{runState.progressLabel || runState.message}</Text>
+          </Box>
           {runState.progressPhase ? (
             <Text color={TUI_THEME.muted}>Phase: {runState.progressPhase}</Text>
           ) : null}
-          <Text color={TUI_THEME.text}>{runState.progressLabel || runState.message}</Text>
           {runState.runDir ? <Text color={TUI_THEME.muted}>Run: {runState.runDir}</Text> : null}
           <Text color={TUI_THEME.muted}>
             {runState.abortable
@@ -220,7 +230,7 @@ export function WorkspacePane(props: {
         </Box>
       ) : runState.state === "aborted" ? (
         <Box flexDirection="column">
-          <Text color={TUI_THEME.warn}>Workflow aborted</Text>
+          <Text color={TUI_THEME.warn} inverse>WORKFLOW ABORTED</Text>
           <Text color={TUI_THEME.text}>{runState.message}</Text>
           {runState.runDir ? <Text color={TUI_THEME.muted}>Run: {runState.runDir}</Text> : null}
           <Newline />
@@ -232,7 +242,7 @@ export function WorkspacePane(props: {
         </Box>
       ) : runState.state === "error" ? (
         <Box flexDirection="column">
-          <Text color={TUI_THEME.error}>Execution error</Text>
+          <Text color={TUI_THEME.error} inverse>EXECUTION ERROR</Text>
           <Text color={TUI_THEME.text}>{runState.message}</Text>
           {runState.runDir ? <Text color={TUI_THEME.muted}>Run: {runState.runDir}</Text> : null}
           <Newline />
@@ -244,7 +254,7 @@ export function WorkspacePane(props: {
         </Box>
       ) : runState.result ? (
         <Box flexDirection="column">
-          <Text color={TUI_THEME.ok}>{completionPulse} Workflow complete</Text>
+          <Text color={TUI_THEME.ok} inverse>{completionPulse} WORKFLOW COMPLETE</Text>
           <Text color={TUI_THEME.ok}>{runState.result.summary}</Text>
           <Text color={TUI_THEME.text}>Run directory: {runState.result.runDir}</Text>
           <Text color={TUI_THEME.text}>Markdown output: {runState.result.contextMarkdownPath}</Text>
@@ -281,6 +291,7 @@ export function WorkspacePane(props: {
 }
 
 export function FormPane(props: {
+  actionId?: TuiAction["id"];
   title: string;
   submitLabel: string;
   fields: TuiFormField[];
@@ -291,6 +302,10 @@ export function FormPane(props: {
   activeSuggestionIndex: number;
   tick: number;
 }): React.JSX.Element {
+  if (props.actionId === "task-console") {
+    return <PromptConsolePane {...props} />;
+  }
+
   return (
     <Panel title={props.title} width="100%" minHeight={24} active>
       {props.fields.map((field, index) => {
@@ -342,6 +357,70 @@ export function FormPane(props: {
       <Text color={TUI_THEME.ok}>Enter: {props.submitLabel}</Text>
       <Text color={TUI_THEME.muted}>Tab: accept path suggestion or autocomplete • Shift+Tab: previous field</Text>
       <Text color={TUI_THEME.muted}>Left/Right: move cursor • Up/Down: field or suggestion nav • Ctrl+U: clear field • Esc: back</Text>
+    </Panel>
+  );
+}
+
+function PromptConsolePane(props: {
+  actionId?: TuiAction["id"];
+  title: string;
+  submitLabel: string;
+  fields: TuiFormField[];
+  activeFieldIndex: number;
+  activeTextCursorIndex: number;
+  insights: TuiFormInsight[];
+  suggestions: string[];
+  activeSuggestionIndex: number;
+  tick: number;
+}): React.JSX.Element {
+  const promptField = props.fields.find((field) => field.id === "taskPrompt");
+  const promptFieldIndex = props.fields.findIndex((field) => field.id === "taskPrompt");
+  const scopeField = props.fields.find((field) => field.id === "taskScope");
+  const modeField = props.fields.find((field) => field.id === "taskMode");
+  const displayValue = promptField?.value.length ? promptField.value : promptField?.placeholder || "";
+  const promptDisplay =
+    props.activeFieldIndex === promptFieldIndex
+      ? renderValueWithCursor(displayValue, Boolean(promptField?.value.length), props.activeTextCursorIndex)
+      : displayValue;
+  const scopeLabel = scopeField?.options?.find((option) => option.value === scopeField.value)?.label || scopeField?.value || "Browser-first";
+  const modeLabel = modeField?.options?.find((option) => option.value === modeField.value)?.label || modeField?.value || "Preview only";
+
+  return (
+    <Panel title={props.title} width="100%" minHeight={24} active>
+      <Text color={TUI_THEME.accentSoft} inverse>PROMPT STAGING CONSOLE</Text>
+      <Text color={TUI_THEME.text}>Shape the future arbitrary agent task here before connector-backed execution exists.</Text>
+      <Newline />
+      <Box borderStyle="double" borderColor={TUI_THEME.accent} paddingX={1} paddingY={0} flexDirection="column" marginBottom={1}>
+        <Text color={TUI_THEME.title}>MISSION PROMPT</Text>
+        <Text color={TUI_THEME.text} inverse>{truncate(promptDisplay || " ", 108)}</Text>
+        <Text color={TUI_THEME.muted}>Type naturally. This box is modeled as a future operator prompt surface, not a web form.</Text>
+      </Box>
+      <Box flexDirection="column" marginBottom={1}>
+        <Text color={TUI_THEME.accentSoft}>Execution Scope :: <Text color={TUI_THEME.text}>{scopeLabel}</Text></Text>
+        <Text color={TUI_THEME.accentSoft}>Execution Mode :: <Text color={TUI_THEME.text}>{modeLabel}</Text></Text>
+        <Text color={TUI_THEME.warn}>Instagram audit is being retired from the main dashboard. Keep using this console for future arbitrary agent tasks.</Text>
+      </Box>
+      <Text color={TUI_THEME.title}>Suggested prompts</Text>
+      <Text color={TUI_THEME.muted}>- Review all open tabs related to my homework and build a dense context bundle.</Text>
+      <Text color={TUI_THEME.muted}>- Expand every hidden section on the current page before export.</Text>
+      <Text color={TUI_THEME.muted}>- Compare this folder with the browser tabs and tell me what to read first.</Text>
+      <Newline />
+      <Text color={TUI_THEME.title}>Status / Constraints</Text>
+      {props.insights.length === 0 ? (
+        <Text color={TUI_THEME.muted}>No live preview available for this prompt yet.</Text>
+      ) : (
+        props.insights.map((insight, index) => (
+          <Box key={`${index}-${insight.label}`} flexDirection="column" marginBottom={1}>
+            <Text color={toneColor(insight.tone)} inverse={insight.tone !== "neutral"}>
+              {SCAN_FRAMES[(props.tick + index) % SCAN_FRAMES.length]} {insight.label}
+            </Text>
+            <Text color={TUI_THEME.muted}>{truncate(insight.details, 104)}</Text>
+          </Box>
+        ))
+      )}
+      <Newline />
+      <Text color={TUI_THEME.ok}>Enter: {props.submitLabel}</Text>
+      <Text color={TUI_THEME.muted}>Tab: move fields • Left/Right: cursor or select • Ctrl+U: clear active field • Esc: back</Text>
     </Panel>
   );
 }
@@ -411,10 +490,13 @@ function BrowserStatus(props: { snapshot: DashboardSnapshot; tick: number }): Re
       <Text color={TUI_THEME.text}>
         Tabs: {browser.usableTargets} usable / {browser.totalTargets} total / {browser.matchingTargets} match current scope
       </Text>
+      {browser.ignoredTargets > 0 ? (
+        <Text color={TUI_THEME.warn}>Filtered noisy targets: {browser.ignoredTargets}</Text>
+      ) : null}
       <Newline />
       {browser.issues.length > 0 ? (
         <Box flexDirection="column" marginBottom={1}>
-          <Text color={TUI_THEME.accentSoft}>Issues</Text>
+          <Text color={TUI_THEME.warn} inverse>ISSUES</Text>
           {browser.issues.map((issue, index) => (
             <Text key={`${index}-${issue}`} color={TUI_THEME.muted}>
               - {truncate(issue, 44)}
@@ -424,10 +506,20 @@ function BrowserStatus(props: { snapshot: DashboardSnapshot; tick: number }): Re
       ) : null}
       {browser.suggestions.length > 0 ? (
         <Box flexDirection="column" marginBottom={1}>
-          <Text color={TUI_THEME.accentSoft}>Suggestions</Text>
+          <Text color={TUI_THEME.accentSoft} inverse>SUGGESTIONS</Text>
           {browser.suggestions.map((suggestion, index) => (
             <Text key={`${index}-${suggestion}`} color={TUI_THEME.muted}>
               - {truncate(suggestion, 44)}
+            </Text>
+          ))}
+        </Box>
+      ) : null}
+      {browser.detectedProfiles.length > 0 ? (
+        <Box flexDirection="column" marginBottom={1}>
+          <Text color={TUI_THEME.title} inverse>LOCAL CHROME PROFILES</Text>
+          {browser.detectedProfiles.slice(0, 6).map((profile, index) => (
+            <Text key={`${index}-${profile}`} color={TUI_THEME.muted}>
+              - {truncate(profile, 44)}
             </Text>
           ))}
         </Box>
@@ -521,7 +613,8 @@ function renderProgressBar(
   tick: number,
   complete = false,
 ): string {
-  const width = 18;
+  const terminalWidth = process.stdout.columns ?? 120;
+  const width = Math.max(28, Math.min(64, terminalWidth - 28));
   const ratio = total && total > 0 ? Math.min(1, (current ?? 0) / total) : 0;
   const baseProgress = complete ? 1 : ratio;
   const filled = Math.round(width * baseProgress);

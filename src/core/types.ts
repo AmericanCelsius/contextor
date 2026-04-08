@@ -237,8 +237,10 @@ export interface BrowserConnectionDiagnostics {
   totalTargets: number;
   usableTargets: number;
   matchingTargets: number;
+  ignoredTargets: number;
   selectionLabel: string;
   pages: BrowserPageSummary[];
+  detectedProfiles: string[];
   issues: string[];
   suggestions: string[];
 }
