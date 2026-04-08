@@ -12,6 +12,7 @@ import {
   ExportCurrentPageOptions,
   LatestLogSummary,
   RecentRunSummary,
+  RunObserver,
   SocialAuditOptions,
   WorkflowResult,
 } from "./types";
@@ -36,71 +37,196 @@ export class ContextorOrchestrator {
     return this.config;
   }
 
-  async compileTabs(options: CompileTabsOptions): Promise<WorkflowResult> {
-    const runDirectories = await createRunDirectories(this.config.outputDirectory);
-    const logger = new RunLogger(runDirectories);
+  async compileTabs(options: CompileTabsOptions, observe?: RunObserver): Promise<WorkflowResult> {
+    const runDirectories = await createRunDirectories(this.config.outputDirectory, {
+      workflow: "tabs",
+      goal: options.goal,
+    });
+    const logger = new RunLogger(runDirectories, {
+      onWrite: (entry) =>
+        observe?.({
+          kind: "log",
+          workflow: "tabs",
+          goal: options.goal,
+          runDir: runDirectories.root,
+          logEntry: entry,
+        }),
+    });
     const browserAdapter = new BrowserAdapter(this.config, logger);
     const compiler = new ContextCompiler(logger);
 
     try {
+      await observe?.({
+        kind: "run-started",
+        workflow: "tabs",
+        goal: options.goal,
+        runDir: runDirectories.root,
+      });
       await logger.info("Starting tabs workflow", options);
-      return await runCompileTabsWorkflow({
+      const result = await runCompileTabsWorkflow({
         browserAdapter,
         compiler,
         logger,
         runDirectories,
         options,
       });
+      await observe?.({
+        kind: "run-completed",
+        workflow: "tabs",
+        goal: options.goal,
+        runDir: runDirectories.root,
+        summary: result.summary,
+      });
+      return result;
+    } catch (error) {
+      await observe?.({
+        kind: "run-failed",
+        workflow: "tabs",
+        goal: options.goal,
+        runDir: runDirectories.root,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
     } finally {
       await browserAdapter.dispose();
     }
   }
 
-  async compileFolder(options: CompileFolderOptions): Promise<WorkflowResult> {
-    const runDirectories = await createRunDirectories(this.config.outputDirectory);
-    const logger = new RunLogger(runDirectories);
+  async compileFolder(options: CompileFolderOptions, observe?: RunObserver): Promise<WorkflowResult> {
+    const runDirectories = await createRunDirectories(this.config.outputDirectory, {
+      workflow: "folder",
+      goal: options.goal,
+    });
+    const logger = new RunLogger(runDirectories, {
+      onWrite: (entry) =>
+        observe?.({
+          kind: "log",
+          workflow: "folder",
+          goal: options.goal,
+          runDir: runDirectories.root,
+          logEntry: entry,
+        }),
+    });
     const filesystemAdapter = new FilesystemAdapter(this.config, logger);
     const compiler = new ContextCompiler(logger);
 
-    await logger.info("Starting folder workflow", options);
-    return runCompileFolderWorkflow({
-      filesystemAdapter,
-      compiler,
-      logger,
-      runDirectories,
-      options,
-    });
+    try {
+      await observe?.({
+        kind: "run-started",
+        workflow: "folder",
+        goal: options.goal,
+        runDir: runDirectories.root,
+      });
+      await logger.info("Starting folder workflow", options);
+      const result = await runCompileFolderWorkflow({
+        filesystemAdapter,
+        compiler,
+        logger,
+        runDirectories,
+        options,
+      });
+      await observe?.({
+        kind: "run-completed",
+        workflow: "folder",
+        goal: options.goal,
+        runDir: runDirectories.root,
+        summary: result.summary,
+      });
+      return result;
+    } catch (error) {
+      await observe?.({
+        kind: "run-failed",
+        workflow: "folder",
+        goal: options.goal,
+        runDir: runDirectories.root,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
   }
 
-  async exportCurrentPage(options: ExportCurrentPageOptions): Promise<WorkflowResult> {
-    const runDirectories = await createRunDirectories(this.config.outputDirectory);
-    const logger = new RunLogger(runDirectories);
+  async exportCurrentPage(options: ExportCurrentPageOptions, observe?: RunObserver): Promise<WorkflowResult> {
+    const runDirectories = await createRunDirectories(this.config.outputDirectory, {
+      workflow: "page-export",
+      goal: options.goal,
+    });
+    const logger = new RunLogger(runDirectories, {
+      onWrite: (entry) =>
+        observe?.({
+          kind: "log",
+          workflow: "page-export",
+          goal: options.goal,
+          runDir: runDirectories.root,
+          logEntry: entry,
+        }),
+    });
     const browserAdapter = new BrowserAdapter(this.config, logger);
     const compiler = new ContextCompiler(logger);
 
     try {
+      await observe?.({
+        kind: "run-started",
+        workflow: "page-export",
+        goal: options.goal,
+        runDir: runDirectories.root,
+      });
       await logger.info("Starting page export workflow", options);
-      return await runExportCurrentPageWorkflow({
+      const result = await runExportCurrentPageWorkflow({
         browserAdapter,
         compiler,
         logger,
         runDirectories,
         options,
       });
+      await observe?.({
+        kind: "run-completed",
+        workflow: "page-export",
+        goal: options.goal,
+        runDir: runDirectories.root,
+        summary: result.summary,
+      });
+      return result;
+    } catch (error) {
+      await observe?.({
+        kind: "run-failed",
+        workflow: "page-export",
+        goal: options.goal,
+        runDir: runDirectories.root,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
     } finally {
       await browserAdapter.dispose();
     }
   }
 
-  async socialAudit(options: SocialAuditOptions): Promise<WorkflowResult> {
-    const runDirectories = await createRunDirectories(this.config.outputDirectory);
-    const logger = new RunLogger(runDirectories);
+  async socialAudit(options: SocialAuditOptions, observe?: RunObserver): Promise<WorkflowResult> {
+    const runDirectories = await createRunDirectories(this.config.outputDirectory, {
+      workflow: "instagram-audit",
+      goal: options.goal,
+    });
+    const logger = new RunLogger(runDirectories, {
+      onWrite: (entry) =>
+        observe?.({
+          kind: "log",
+          workflow: "instagram-audit",
+          goal: options.goal,
+          runDir: runDirectories.root,
+          logEntry: entry,
+        }),
+    });
     const browserAdapter = new BrowserAdapter(this.config, logger);
     const compiler = new ContextCompiler(logger);
 
     try {
+      await observe?.({
+        kind: "run-started",
+        workflow: "instagram-audit",
+        goal: options.goal,
+        runDir: runDirectories.root,
+      });
       await logger.info("Starting social audit workflow", options);
-      return await runInstagramAuditWorkflow({
+      const result = await runInstagramAuditWorkflow({
         browserAdapter,
         compiler,
         logger,
@@ -108,19 +234,54 @@ export class ContextorOrchestrator {
         options,
         enabledStrategies: this.config.strategies.enabled,
       });
+      await observe?.({
+        kind: "run-completed",
+        workflow: "instagram-audit",
+        goal: options.goal,
+        runDir: runDirectories.root,
+        summary: result.summary,
+      });
+      return result;
+    } catch (error) {
+      await observe?.({
+        kind: "run-failed",
+        workflow: "instagram-audit",
+        goal: options.goal,
+        runDir: runDirectories.root,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
     } finally {
       await browserAdapter.dispose();
     }
   }
 
-  async compile(options: CompileGoalOptions): Promise<WorkflowResult> {
-    const runDirectories = await createRunDirectories(this.config.outputDirectory);
-    const logger = new RunLogger(runDirectories);
+  async compile(options: CompileGoalOptions, observe?: RunObserver): Promise<WorkflowResult> {
+    const runDirectories = await createRunDirectories(this.config.outputDirectory, {
+      workflow: "compile",
+      goal: options.goal,
+    });
+    const logger = new RunLogger(runDirectories, {
+      onWrite: (entry) =>
+        observe?.({
+          kind: "log",
+          workflow: "compile",
+          goal: options.goal,
+          runDir: runDirectories.root,
+          logEntry: entry,
+        }),
+    });
     const browserAdapter = new BrowserAdapter(this.config, logger);
     const filesystemAdapter = new FilesystemAdapter(this.config, logger);
     const compiler = new ContextCompiler(logger);
 
     try {
+      await observe?.({
+        kind: "run-started",
+        workflow: "compile",
+        goal: options.goal,
+        runDir: runDirectories.root,
+      });
       await logger.info("Starting generic compile workflow", options);
       const browserSources =
         options.includeTabs || options.allTabs || options.match
@@ -157,11 +318,28 @@ export class ContextorOrchestrator {
         ],
       });
 
-      return {
+      const workflowResult = {
         ...result,
         workflow: "compile",
         summary: `Compiled ${browserSources.length} browser source(s) and ${fileSources.length} file source(s)`,
       };
+      await observe?.({
+        kind: "run-completed",
+        workflow: "compile",
+        goal: options.goal,
+        runDir: runDirectories.root,
+        summary: workflowResult.summary,
+      });
+      return workflowResult;
+    } catch (error) {
+      await observe?.({
+        kind: "run-failed",
+        workflow: "compile",
+        goal: options.goal,
+        runDir: runDirectories.root,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
     } finally {
       await browserAdapter.dispose();
     }

@@ -34,10 +34,20 @@ export interface FileSource {
 }
 
 export interface RunDirectories {
+  name: string;
+  createdAt: string;
   root: string;
   logs: string;
   artifacts: string;
   manifests: string;
+}
+
+export interface RunManifest {
+  name: string;
+  createdAt: string;
+  workflow: string;
+  goal: string;
+  runDir: string;
 }
 
 export interface ContextCompileInput {
@@ -69,6 +79,26 @@ export interface LatestLogSummary {
   logPath?: string;
   lines: string[];
 }
+
+export interface RunLogEntry {
+  timestamp: string;
+  level: "INFO" | "WARN" | "ERROR";
+  message: string;
+  data?: unknown;
+  line: string;
+}
+
+export interface RunEvent {
+  kind: "run-started" | "log" | "run-completed" | "run-failed";
+  workflow: string;
+  goal?: string;
+  runDir: string;
+  summary?: string;
+  error?: string;
+  logEntry?: RunLogEntry;
+}
+
+export type RunObserver = (event: RunEvent) => void | Promise<void>;
 
 export interface CompileTabsOptions {
   goal: string;
@@ -109,6 +139,9 @@ export interface SocialAuditOptions {
 export interface RecentRunSummary {
   runDir: string;
   createdAt: string;
+  name?: string;
+  workflow?: string;
+  goal?: string;
   contextMarkdownPath?: string;
   logPath?: string;
   artifacts: string[];

@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { RunDirectories } from "./types";
+import { RunDirectories, RunLogEntry } from "./types";
 
 export interface Logger {
   info(message: string, data?: unknown): Promise<void>;
@@ -14,7 +14,10 @@ export class RunLogger {
 
   private readonly lines: string[] = [];
 
-  constructor(private readonly directories: RunDirectories) {
+  constructor(
+    private readonly directories: RunDirectories,
+    private readonly options: { onWrite?: (entry: RunLogEntry) => void | Promise<void> } = {},
+  ) {
     this.logPath = path.join(directories.logs, "run.log");
   }
 
@@ -35,9 +38,18 @@ export class RunLogger {
   }
 
   private async write(level: string, message: string, data?: unknown): Promise<void> {
-    const line = `[${new Date().toISOString()}] [${level}] ${message}${data === undefined ? "" : ` ${JSON.stringify(data)}`}`;
+    const timestamp = new Date().toISOString();
+    const line = `[${timestamp}] [${level}] ${message}${data === undefined ? "" : ` ${JSON.stringify(data)}`}`;
+    const entry: RunLogEntry = {
+      timestamp,
+      level: level as RunLogEntry["level"],
+      message,
+      data,
+      line,
+    };
     this.lines.push(line);
     await fs.appendFile(this.logPath, `${line}\n`, "utf8");
+    await this.options.onWrite?.(entry);
   }
 }
 

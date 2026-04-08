@@ -1,6 +1,6 @@
 {
   "name": "contextor",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "type": "module",
   "description": "Local-first context aggregation and browser automation toolkit.",
@@ -11,6 +11,8 @@
     "build": "tsup",
     "typecheck": "tsc --noEmit",
     "cli": "tsx src/cli/index.ts",
+    "launch": "tsx src/cli/index.ts launch",
+    "start:tui": "tsx src/cli/index.ts start",
     "tui": "tsx src/cli/index.ts tui",
     "gui": "tsx src/cli/index.ts tui",
     "start": "node dist/cli/index.js tui",

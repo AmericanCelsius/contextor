@@ -14,6 +14,7 @@ export class ContextCompiler {
     const contextMarkdownPath = path.join(runDirectories.root, "context.md");
     const contextTextPath = path.join(runDirectories.root, "context.txt");
     const manifestPath = path.join(runDirectories.manifests, "sources.json");
+    const runManifestPath = path.join(runDirectories.manifests, "run.json");
 
     const markdown = renderContextMarkdown(input);
     const text = markdownToPlainText(markdown);
@@ -31,6 +32,13 @@ export class ContextCompiler {
         communicationNotes: input.communicationNotes,
         actionableNotes: input.actionableNotes,
         extras: input.manifestExtras ?? {},
+      }),
+      writeJsonFile(runManifestPath, {
+        name: runDirectories.name,
+        createdAt: runDirectories.createdAt,
+        workflow: input.workflow,
+        goal: input.goal,
+        runDir: runDirectories.root,
       }),
     ]);
 

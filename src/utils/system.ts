@@ -11,3 +11,27 @@ export function openPathInShell(targetPath: string): void {
   const child = spawn(command, [targetPath], { detached: true, stdio: "ignore" });
   child.unref();
 }
+
+export async function runCommand(command: string, args: string[], options: { cwd?: string } = {}): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn(command, args, {
+      cwd: options.cwd,
+      stdio: "inherit",
+      env: process.env,
+    });
+
+    child.on("error", reject);
+    child.on("exit", (code) => {
+      if (code === 0) {
+        resolve();
+        return;
+      }
+
+      reject(new Error(`Command failed (${command} ${args.join(" ")}): exit code ${code ?? "unknown"}`));
+    });
+  });
+}
+
+export function getNpmExecutable(): string {
+  return process.platform === "win32" ? "npm.cmd" : "npm";
+}

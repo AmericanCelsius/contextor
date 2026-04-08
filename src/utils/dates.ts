@@ -1,5 +1,5 @@
-export function formatRunTimestamp(input: Date = new Date()): string {
-  return input.toISOString().replace(/\.\d{3}Z$/, "").replace(/:/g, "-");
+export function formatRunTimestamp(input: Date | string | number = new Date()): string {
+  return new Date(input).toISOString().replace(/\.\d{3}Z$/, "").replace(/:/g, "-");
 }
 
 export function formatDisplayDate(input: Date | string | number): string {

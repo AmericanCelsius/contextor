@@ -4,7 +4,7 @@ import path from "node:path";
 import { Logger } from "../core/logger";
 import { scoreFileCandidate, suppressDuplicateCandidates } from "../core/relevance";
 import { ContextorConfig, FileCandidate, FileSource } from "../core/types";
-import { isWithinDirectory, pathExists } from "../utils/files";
+import { isWithinDirectory, pathExists, resolveUserPath } from "../utils/files";
 import { extractKeyPoints, summarizeText, truncate } from "../utils/text";
 
 const SUPPORTED_EXTENSIONS = new Set([".txt", ".md", ".pdf", ".json", ".csv", ".docx"]);
@@ -16,7 +16,7 @@ export class FilesystemAdapter {
   ) {}
 
   async compileDirectory(folderPath: string, goal: string, limit = 15): Promise<FileSource[]> {
-    const resolvedPath = path.resolve(folderPath);
+    const resolvedPath = resolveUserPath(folderPath);
     if (!(await pathExists(resolvedPath))) {
       throw new Error(`Folder does not exist: ${resolvedPath}`);
     }

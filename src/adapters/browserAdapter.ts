@@ -88,7 +88,7 @@ export class BrowserAdapter {
 
     diagnostics.usableTargets = usableTargets.length;
     diagnostics.matchingTargets = matchingTargets.length;
-    diagnostics.pages = usableTargets.slice(0, 8);
+    diagnostics.pages = usableTargets.slice(0, 16);
 
     if (usableTargets.length === 0) {
       diagnostics.issues.push("Chrome is reachable, but no regular page targets are open.");

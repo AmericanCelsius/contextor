@@ -1,9 +1,13 @@
 #!/usr/bin/env node
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { Command } from "commander";
 
 import { ContextorOrchestrator } from "../core/orchestrator";
 import { CONTEXTOR_VERSION } from "../core/version";
 import { WorkflowResult } from "../core/types";
+import { getNpmExecutable, runCommand } from "../utils/system";
 
 const program = new Command();
 
@@ -156,11 +160,29 @@ program
   });
 
 program
+  .command("launch")
+  .alias("start")
+  .description("Install dependencies, rebuild Contextor, and launch the TUI")
+  .option("--config <path>", "Path to a Contextor config file")
+  .action(async (options) => {
+    const projectRoot = inferProjectRoot();
+    await runCommand(getNpmExecutable(), ["install"], { cwd: projectRoot });
+    await runCommand(getNpmExecutable(), ["run", "build"], { cwd: projectRoot });
+
+    const args = ["dist/cli/index.js", "tui"];
+    if (options.config) {
+      args.push("--config", options.config);
+    }
+
+    await runCommand(process.execPath, args, { cwd: projectRoot });
+  });
+
+program
   .command("gui")
   .description("Deprecated alias for the terminal TUI")
   .option("--config <path>", "Path to a Contextor config file")
   .action(async (options) => {
-    console.error("`contextor gui` is deprecated in v0.2.0. Launching the terminal TUI instead.");
+    console.error("`contextor gui` is deprecated in v0.2.1. Launching the terminal TUI instead.");
     const { startTui } = await import("../tui/index");
     await startTui({
       projectRoot: process.cwd(),
@@ -186,4 +208,9 @@ function printResult(result: WorkflowResult): void {
       console.log(`- ${artifactPath}`);
     }
   }
+}
+
+function inferProjectRoot(): string {
+  const currentFile = fileURLToPath(import.meta.url);
+  return path.resolve(path.dirname(currentFile), "../..");
 }

@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 
-import { RecentRunSummary, RunDirectories } from "../core/types";
+import { RecentRunSummary, RunDirectories, RunManifest } from "../core/types";
 import { formatRunTimestamp } from "./dates";
 import { slugify } from "./text";
 
@@ -27,9 +27,50 @@ export function resolveProjectPath(projectRoot: string, inputPath: string): stri
   return path.isAbsolute(expanded) ? expanded : path.resolve(projectRoot, expanded);
 }
 
-export async function createRunDirectories(outputRoot: string): Promise<RunDirectories> {
-  const runRoot = path.join(outputRoot, "runs", formatRunTimestamp());
+export function normalizeUserPathInput(inputPath: string): string {
+  let trimmed = inputPath.trim();
+
+  for (let index = 0; index < 2; index += 1) {
+    if (trimmed.length >= 4 && trimmed.startsWith('\\"') && trimmed.endsWith('\\"')) {
+      trimmed = trimmed.slice(2, -2).trim();
+      continue;
+    }
+
+    if (trimmed.length >= 4 && trimmed.startsWith("\\'") && trimmed.endsWith("\\'")) {
+      trimmed = trimmed.slice(2, -2).trim();
+      continue;
+    }
+
+    if (trimmed.length >= 2) {
+      const quote = trimmed[0];
+      if ((quote === "'" || quote === '"') && trimmed.at(-1) === quote) {
+        trimmed = trimmed.slice(1, -1).trim();
+      }
+    }
+  }
+
+  return trimmed;
+}
+
+export function resolveUserPath(inputPath: string, baseDirectory = process.cwd()): string {
+  const normalized = normalizeUserPathInput(inputPath);
+  const expanded = expandHomeDirectory(normalized);
+  return path.isAbsolute(expanded) ? path.normalize(expanded) : path.resolve(baseDirectory, expanded);
+}
+
+export async function createRunDirectories(
+  outputRoot: string,
+  options: { workflow?: string; goal?: string } = {},
+): Promise<RunDirectories> {
+  const createdAt = new Date().toISOString();
+  const timestamp = formatRunTimestamp(createdAt);
+  const workflowSlug = slugify(options.workflow || "run").slice(0, 24);
+  const goalSlug = slugify(options.goal || "context").slice(0, 40);
+  const name = `${timestamp}__${workflowSlug}__${goalSlug}`;
+  const runRoot = path.join(outputRoot, "runs", name);
   const directories: RunDirectories = {
+    name,
+    createdAt,
     root: runRoot,
     logs: path.join(runRoot, "logs"),
     artifacts: path.join(runRoot, "artifacts"),
@@ -88,10 +129,16 @@ export async function listRecentRuns(outputRoot: string, limit = 10): Promise<Re
         listFilesSafe(manifestsDir),
         listFilesSafe(logsDir),
       ]);
+      const runManifestPath = path.join(manifestsDir, "run.json");
+      const runManifest = (await pathExists(runManifestPath)) ? await readJsonFile<RunManifest>(runManifestPath) : undefined;
+      const createdAt = runManifest?.createdAt || parseRunDirectoryTimestamp(directoryName) || directoryName;
 
       return {
         runDir,
-        createdAt: directoryName,
+        createdAt,
+        name: runManifest?.name || directoryName,
+        workflow: runManifest?.workflow,
+        goal: runManifest?.goal,
         contextMarkdownPath: (await pathExists(path.join(runDir, "context.md"))) ? path.join(runDir, "context.md") : undefined,
         logPath: logNames[0] ? path.join(logsDir, logNames[0]) : undefined,
         artifacts: artifactNames.map((name) => path.join(artifactsDir, name)),
@@ -151,6 +198,162 @@ export function isWithinDirectory(targetPath: string, allowedRoots: string[]): b
   });
 }
 
+export interface PathInspectionResult {
+  rawValue: string;
+  normalizedValue: string;
+  resolvedPath: string;
+  exists: boolean;
+  isDirectory: boolean;
+  withinAllowedRoots: boolean;
+  message: string;
+  matches: string[];
+}
+
+export async function inspectPathInput(
+  inputPath: string,
+  allowedRoots: string[],
+  baseDirectory = process.cwd(),
+): Promise<PathInspectionResult> {
+  const normalizedValue = normalizeUserPathInput(inputPath);
+  if (!normalizedValue) {
+    return {
+      rawValue: inputPath,
+      normalizedValue,
+      resolvedPath: "",
+      exists: false,
+      isDirectory: false,
+      withinAllowedRoots: false,
+      message: "Enter a folder path. Quotes and bracketed names are accepted.",
+      matches: [],
+    };
+  }
+
+  const resolvedPath = resolveUserPath(normalizedValue, baseDirectory);
+  const stats = await readPathStats(resolvedPath);
+  const matches = await listPathMatches(normalizedValue, baseDirectory);
+
+  if (!stats) {
+    return {
+      rawValue: inputPath,
+      normalizedValue,
+      resolvedPath,
+      exists: false,
+      isDirectory: false,
+      withinAllowedRoots: false,
+      message: matches.length > 0 ? `No exact match yet. ${matches.length} completion candidate(s) found.` : "Path not found.",
+      matches,
+    };
+  }
+
+  if (!stats.isDirectory) {
+    return {
+      rawValue: inputPath,
+      normalizedValue,
+      resolvedPath,
+      exists: true,
+      isDirectory: false,
+      withinAllowedRoots: isWithinDirectory(resolvedPath, allowedRoots),
+      message: "Path exists, but it is a file. The folder workflow requires a directory.",
+      matches,
+    };
+  }
+
+  if (!isWithinDirectory(resolvedPath, allowedRoots)) {
+    return {
+      rawValue: inputPath,
+      normalizedValue,
+      resolvedPath,
+      exists: true,
+      isDirectory: true,
+      withinAllowedRoots: false,
+      message: "Directory exists, but it is outside the configured allowlist.",
+      matches,
+    };
+  }
+
+  return {
+    rawValue: inputPath,
+    normalizedValue,
+    resolvedPath,
+    exists: true,
+    isDirectory: true,
+    withinAllowedRoots: true,
+    message: "Directory is available and within the allowlist.",
+    matches,
+  };
+}
+
+export interface PathAutocompleteResult {
+  completedValue: string;
+  matches: string[];
+  message: string;
+  changed: boolean;
+}
+
+export async function autocompletePathInput(
+  inputPath: string,
+  baseDirectory = process.cwd(),
+): Promise<PathAutocompleteResult> {
+  const normalizedValue = normalizeUserPathInput(inputPath);
+  if (!normalizedValue) {
+    return {
+      completedValue: inputPath,
+      matches: [],
+      message: "Type part of a path before requesting autocomplete.",
+      changed: false,
+    };
+  }
+
+  const expandedValue = expandHomeDirectory(normalizedValue);
+  const absoluteValue = path.isAbsolute(expandedValue) ? path.normalize(expandedValue) : path.resolve(baseDirectory, expandedValue);
+  const searchDirectory =
+    normalizedValue.endsWith(path.sep) || expandedValue.endsWith(path.sep)
+      ? absoluteValue
+      : path.dirname(absoluteValue);
+  const searchPrefix =
+    normalizedValue.endsWith(path.sep) || expandedValue.endsWith(path.sep) ? "" : path.basename(absoluteValue);
+  const stats = await readPathStats(searchDirectory);
+
+  if (!stats?.isDirectory) {
+    return {
+      completedValue: inputPath,
+      matches: [],
+      message: "Autocomplete could not find a parent directory for that path.",
+      changed: false,
+    };
+  }
+
+  const entries = await fs.readdir(searchDirectory, { withFileTypes: true });
+  const matches = entries
+    .filter((entry) => entry.name.toLowerCase().startsWith(searchPrefix.toLowerCase()))
+    .map((entry) => {
+      const fullPath = path.join(searchDirectory, entry.name);
+      return entry.isDirectory() ? `${fullPath}${path.sep}` : fullPath;
+    })
+    .sort();
+
+  if (matches.length === 0) {
+    return {
+      completedValue: inputPath,
+      matches: [],
+      message: "No autocomplete candidates matched the current prefix.",
+      changed: false,
+    };
+  }
+
+  const completedValue = matches.length === 1 ? matches[0]! : longestCommonPrefix(matches);
+
+  return {
+    completedValue,
+    matches: matches.slice(0, 12),
+    message:
+      matches.length === 1
+        ? "Autocomplete filled the matching path."
+        : `Autocomplete narrowed to ${matches.length} candidate(s).`,
+    changed: completedValue !== absoluteValue,
+  };
+}
+
 export async function detectInstalledBrowserExecutable(): Promise<string | undefined> {
   const candidates = [
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
@@ -166,4 +369,69 @@ export async function detectInstalledBrowserExecutable(): Promise<string | undef
   }
 
   return undefined;
+}
+
+function parseRunDirectoryTimestamp(directoryName: string): string | undefined {
+  const match = directoryName.match(/^(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})/);
+  if (!match) {
+    return undefined;
+  }
+
+  const restored = `${match[1]}T${match[2]}:${match[3]}:${match[4]}Z`;
+  const parsed = new Date(restored);
+  return Number.isNaN(parsed.valueOf()) ? undefined : parsed.toISOString();
+}
+
+async function readPathStats(targetPath: string): Promise<{ isDirectory: boolean } | undefined> {
+  try {
+    const stats = await fs.stat(targetPath);
+    return { isDirectory: stats.isDirectory() };
+  } catch {
+    return undefined;
+  }
+}
+
+async function listPathMatches(inputPath: string, baseDirectory: string): Promise<string[]> {
+  const normalizedValue = normalizeUserPathInput(inputPath);
+  if (!normalizedValue) {
+    return [];
+  }
+
+  const expandedValue = expandHomeDirectory(normalizedValue);
+  const absoluteValue = path.isAbsolute(expandedValue) ? path.normalize(expandedValue) : path.resolve(baseDirectory, expandedValue);
+  const searchDirectory =
+    normalizedValue.endsWith(path.sep) || expandedValue.endsWith(path.sep)
+      ? absoluteValue
+      : path.dirname(absoluteValue);
+  const searchPrefix =
+    normalizedValue.endsWith(path.sep) || expandedValue.endsWith(path.sep) ? "" : path.basename(absoluteValue);
+  const stats = await readPathStats(searchDirectory);
+  if (!stats?.isDirectory) {
+    return [];
+  }
+
+  const entries = await fs.readdir(searchDirectory, { withFileTypes: true });
+  return entries
+    .filter((entry) => entry.name.toLowerCase().startsWith(searchPrefix.toLowerCase()))
+    .map((entry) => {
+      const fullPath = path.join(searchDirectory, entry.name);
+      return entry.isDirectory() ? `${fullPath}${path.sep}` : fullPath;
+    })
+    .sort()
+    .slice(0, 12);
+}
+
+function longestCommonPrefix(values: string[]): string {
+  if (values.length === 0) {
+    return "";
+  }
+
+  let prefix = values[0]!;
+  for (const value of values.slice(1)) {
+    while (!value.startsWith(prefix) && prefix.length > 0) {
+      prefix = prefix.slice(0, -1);
+    }
+  }
+
+  return prefix;
 }
