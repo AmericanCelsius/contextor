@@ -112,6 +112,12 @@ export const TUI_ACTIONS: TuiAction[] = [
     ],
   },
   {
+    id: "launch-browser",
+    label: "Launch Chrome Debug Browser",
+    shortLabel: "browser",
+    description: "Start a Chrome/Chromium debug session from inside Contextor using a separate automation profile.",
+  },
+  {
     id: "open-output",
     label: "Open Latest Output Folder",
     shortLabel: "output",

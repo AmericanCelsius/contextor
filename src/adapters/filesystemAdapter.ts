@@ -21,8 +21,10 @@ export class FilesystemAdapter {
     limit?: number,
     options: {
       onProgress?: (progress: { phase: "indexing" | "extracting" | "complete"; current: number; total: number; details?: string }) => Promise<void> | void;
+      signal?: AbortSignal;
     } = {},
   ): Promise<FileSource[]> {
+    throwIfAborted(options.signal);
     const resolvedPath = resolveUserPath(folderPath);
     if (!(await pathExists(resolvedPath))) {
       throw new Error(`Folder does not exist: ${resolvedPath}`);
@@ -35,7 +37,8 @@ export class FilesystemAdapter {
     }
 
     await this.logger.info("Scanning folder for context sources", { folderPath: resolvedPath });
-    const candidates = await this.walkDirectory(resolvedPath);
+    const candidates = await this.walkDirectory(resolvedPath, options.signal);
+    throwIfAborted(options.signal);
     const scored = candidates
       .map((candidate) => ({
         candidate,
@@ -60,6 +63,7 @@ export class FilesystemAdapter {
 
     const sources: FileSource[] = [];
     for (const [index, item] of extractionTargets.entries()) {
+      throwIfAborted(options.signal);
       const extractedText = await this.extractText(item.candidate.path, item.candidate.extension);
       const source: FileSource = {
         sourceType: "file",
@@ -85,6 +89,8 @@ export class FilesystemAdapter {
       });
     }
 
+    throwIfAborted(options.signal);
+
     const deduped = suppressDuplicateCandidates(sources)
       .sort((left, right) => right.score - left.score)
       .slice(0, typeof limit === "number" && Number.isFinite(limit) && limit > 0 ? limit : undefined);
@@ -99,11 +105,13 @@ export class FilesystemAdapter {
     return deduped;
   }
 
-  private async walkDirectory(rootPath: string): Promise<FileCandidate[]> {
+  private async walkDirectory(rootPath: string, signal?: AbortSignal): Promise<FileCandidate[]> {
+    throwIfAborted(signal);
     const candidates: FileCandidate[] = [];
     const entries = await fs.readdir(rootPath, { withFileTypes: true });
 
     for (const entry of entries) {
+      throwIfAborted(signal);
       if (entry.name.startsWith(".")) {
         continue;
       }
@@ -111,7 +119,7 @@ export class FilesystemAdapter {
       const fullPath = path.join(rootPath, entry.name);
 
       if (entry.isDirectory()) {
-        candidates.push(...(await this.walkDirectory(fullPath)));
+        candidates.push(...(await this.walkDirectory(fullPath, signal)));
         continue;
       }
 
@@ -204,5 +212,11 @@ async function withMutedConsoleWarnings<T>(task: () => Promise<T>, patterns: Reg
     return await task();
   } finally {
     console.warn = originalWarn;
+  }
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) {
+    throw new Error("Folder compile aborted by operator.");
   }
 }

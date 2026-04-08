@@ -37,6 +37,10 @@ export class ContextorOrchestrator {
     return this.config;
   }
 
+  getProjectRoot(): string {
+    return this.projectRoot;
+  }
+
   async compileTabs(options: CompileTabsOptions, observe?: RunObserver): Promise<WorkflowResult> {
     const runDirectories = await createRunDirectories(this.config.outputDirectory, {
       workflow: "tabs",
@@ -92,7 +96,7 @@ export class ContextorOrchestrator {
     }
   }
 
-  async compileFolder(options: CompileFolderOptions, observe?: RunObserver): Promise<WorkflowResult> {
+  async compileFolder(options: CompileFolderOptions, observe?: RunObserver, signal?: AbortSignal): Promise<WorkflowResult> {
     const runDirectories = await createRunDirectories(this.config.outputDirectory, {
       workflow: "folder",
       goal: options.goal,
@@ -125,6 +129,7 @@ export class ContextorOrchestrator {
         runDirectories,
         options,
         observe,
+        signal,
       });
       await observe?.({
         kind: "run-completed",

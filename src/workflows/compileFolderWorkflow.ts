@@ -10,12 +10,14 @@ export async function runCompileFolderWorkflow(input: {
   runDirectories: RunDirectories;
   options: CompileFolderOptions;
   observe?: RunObserver;
+  signal?: AbortSignal;
 }): Promise<WorkflowResult> {
   const fileSources = await input.filesystemAdapter.compileDirectory(
     input.options.folderPath,
     input.options.goal,
     input.options.limit,
     {
+      signal: input.signal,
       onProgress: (progress) =>
         input.observe?.({
           kind: "progress",
@@ -32,9 +34,25 @@ export async function runCompileFolderWorkflow(input: {
         }),
     },
   );
+  throwIfAborted(input.signal);
   if (fileSources.length === 0) {
     throw new Error("No supported files were found in the selected folder.");
   }
+
+  await input.observe?.({
+    kind: "progress",
+    workflow: "folder",
+    goal: input.options.goal,
+    runDir: input.runDirectories.root,
+    progress: {
+      phase: "compiling",
+      current: fileSources.length,
+      total: fileSources.length,
+      unit: "files",
+      details: "Rendering context bundle artifacts...",
+    },
+  });
+  throwIfAborted(input.signal);
 
   const actionableNotes = [
     "Prioritize the highest-scoring files before drilling into lower-relevance files.",
@@ -56,4 +74,10 @@ export async function runCompileFolderWorkflow(input: {
     workflow: "folder",
     summary: `Compiled ${fileSources.length} file source(s) into context.md`,
   };
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) {
+    throw new Error("Folder compile aborted by operator.");
+  }
 }

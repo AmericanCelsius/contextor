@@ -8,6 +8,7 @@ import { TUI_THEME } from "./theme";
 import {
   DashboardSnapshot,
   TuiAction,
+  TuiConfirmationState,
   TuiFormField,
   TuiFormInsight,
   TuiInputTrace,
@@ -81,6 +82,26 @@ export function ConfirmQuitPane({ tick }: { tick: number }): React.JSX.Element {
         <Newline />
         <Text color={TUI_THEME.text}>Press Enter or q to confirm.</Text>
         <Text color={TUI_THEME.muted}>Press Esc, n, or c to cancel and return to the dashboard.</Text>
+      </Panel>
+    </Box>
+  );
+}
+
+export function ConfirmActionPane(props: { tick: number; confirmation: TuiConfirmationState }): React.JSX.Element {
+  const frame = SCAN_FRAMES[props.tick % SCAN_FRAMES.length]!;
+  return (
+    <Box flexDirection="column" alignItems="center" justifyContent="center" height="100%">
+      <Panel title={props.confirmation.title} active width={92} minHeight={14}>
+        <Text color={TUI_THEME.warn}>{frame} {props.confirmation.message}</Text>
+        <Newline />
+        {props.confirmation.details.map((detail) => (
+          <Text key={detail} color={TUI_THEME.text}>
+            {truncate(detail, 86)}
+          </Text>
+        ))}
+        <Newline />
+        <Text color={TUI_THEME.ok}>Enter: {props.confirmation.confirmLabel}</Text>
+        <Text color={TUI_THEME.muted}>Esc / n / c: {props.confirmation.cancelLabel}</Text>
       </Panel>
     </Box>
   );
@@ -164,15 +185,38 @@ export function WorkspacePane(props: {
 
       {runState.state === "running" ? (
         <Box flexDirection="column">
-          <Text color={TUI_THEME.ok}>
-            {progressBar} {renderProgressNumbers(runState.progressCurrent, runState.progressTotal, runState.progressUnit)}
+          <Text color={TUI_THEME.accentSoft}>Progress</Text>
+          <Text color={TUI_THEME.ok}>{progressBar}</Text>
+          <Text color={TUI_THEME.text}>
+            {renderProgressNumbers(runState.progressCurrent, runState.progressTotal, runState.progressUnit)}
           </Text>
+          {runState.progressPhase ? (
+            <Text color={TUI_THEME.muted}>Phase: {runState.progressPhase}</Text>
+          ) : null}
           <Text color={TUI_THEME.text}>{runState.progressLabel || runState.message}</Text>
           {runState.runDir ? <Text color={TUI_THEME.muted}>Run: {runState.runDir}</Text> : null}
-          <Text color={TUI_THEME.muted}>Navigation is locked while the workflow is executing.</Text>
+          <Text color={TUI_THEME.muted}>
+            {runState.abortable
+              ? runState.abortRequested
+                ? "Abort requested. Contextor will stop after the current file operation completes."
+                : "Press x to open the abort prompt while this workflow is running."
+              : "Navigation is locked while the workflow is executing."}
+          </Text>
           <Newline />
           <Text color={TUI_THEME.accentSoft}>Live Log Tail</Text>
           {(runState.liveLogs ?? []).slice(-8).map((line, index) => (
+            <Text key={`${index}-${line}`} color={TUI_THEME.muted}>
+              {truncate(line, 94)}
+            </Text>
+          ))}
+        </Box>
+      ) : runState.state === "aborted" ? (
+        <Box flexDirection="column">
+          <Text color={TUI_THEME.warn}>Workflow aborted</Text>
+          <Text color={TUI_THEME.text}>{runState.message}</Text>
+          {runState.runDir ? <Text color={TUI_THEME.muted}>Run: {runState.runDir}</Text> : null}
+          <Newline />
+          {(runState.liveLogs ?? []).slice(-6).map((line, index) => (
             <Text key={`${index}-${line}`} color={TUI_THEME.muted}>
               {truncate(line, 94)}
             </Text>
@@ -288,7 +332,7 @@ export function FormPane(props: {
       <Newline />
       <Text color={TUI_THEME.ok}>Enter: {props.submitLabel}</Text>
       <Text color={TUI_THEME.muted}>Tab: accept path suggestion or autocomplete • Shift+Tab: previous field</Text>
-      <Text color={TUI_THEME.muted}>Left/Right: move cursor • Up/Down: field or suggestion nav • Esc: back</Text>
+      <Text color={TUI_THEME.muted}>Left/Right: move cursor • Up/Down: field or suggestion nav • Ctrl+U: clear field • Esc: back</Text>
     </Panel>
   );
 }
@@ -327,7 +371,7 @@ export function FooterBar(props: {
   return (
     <Box borderStyle="single" borderColor={TUI_THEME.border} paddingX={1} paddingY={0} marginTop={1} flexDirection="column">
       <Text color={TUI_THEME.muted}>
-        ↑↓ move • ←→ / Tab switch • Enter run • Esc back • r refresh • o open output • l logs • u runs • c config • b browser • q confirm quit
+        ↑↓ move • ←→ / Tab switch • Enter run • Esc back • Ctrl+U clear field • x abort folder run • g launch browser • r refresh • o open output • l logs • u runs • c config • b browser • q confirm quit
       </Text>
       <Text color={TUI_THEME.accentSoft}>
         panel={props.panelView} {props.formMode ? "| form=active" : "| form=idle"} {props.loading ? "| refresh=busy" : ""}
@@ -464,8 +508,8 @@ function renderProgressBar(
 ): string {
   const width = 18;
   const ratio = total && total > 0 ? Math.min(1, (current ?? 0) / total) : 0;
-  const baseProgress = complete ? 1 : Math.max(0.06, ratio);
-  const filled = Math.max(1, Math.round(width * baseProgress));
+  const baseProgress = complete ? 1 : ratio;
+  const filled = Math.round(width * baseProgress);
   const pulseIndex = complete ? width - 1 : tick % width;
   const cells = Array.from({ length: width }, (_, index) => {
     if (index < filled) {
@@ -479,7 +523,7 @@ function renderProgressBar(
 
 function renderProgressNumbers(current: number | undefined, total: number | undefined, unit = "items"): string {
   if (!total || total <= 0) {
-    return "";
+    return `0/0 (0%) ${unit}`;
   }
 
   const safeCurrent = Math.min(current ?? 0, total);

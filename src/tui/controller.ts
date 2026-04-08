@@ -1,6 +1,6 @@
 import { ContextorOrchestrator } from "../core/orchestrator";
 import { RunEvent } from "../core/types";
-import { openPathInShell } from "../utils/system";
+import { launchChromeDebugBrowser, openPathInShell } from "../utils/system";
 import { autocompletePathInput, inspectPathInput } from "../utils/files";
 import { DashboardSnapshot, TuiActionId, TuiPathStatus, TuiWorkflowExecutionResult } from "./types";
 
@@ -25,6 +25,7 @@ export async function executeWorkflow(
   values: Record<string, string>,
   snapshot: DashboardSnapshot,
   onEvent?: (event: RunEvent) => void | Promise<void>,
+  options: { signal?: AbortSignal } = {},
 ): Promise<TuiWorkflowExecutionResult> {
   const events: RunEvent[] = [];
   const observe = async (event: RunEvent): Promise<void> => {
@@ -52,13 +53,14 @@ export async function executeWorkflow(
       }
       return {
         result: await orchestrator.compileFolder(
-          {
-            goal: values.goal || "summarize this project folder",
-            folderPath: values.folderPath,
-            limit: parseFolderLimit(values.limit),
-          },
-          observe,
-        ),
+        {
+          goal: values.goal || "summarize this project folder",
+          folderPath: values.folderPath,
+          limit: parseFolderLimit(values.limit),
+        },
+        observe,
+        options.signal,
+      ),
         events,
       };
     case "page-export":
@@ -96,6 +98,14 @@ export async function executeWorkflow(
 
       openPathInShell(latestRun.runDir);
       return { result: { summary: `Opened ${latestRun.runDir}` }, events };
+    }
+    case "launch-browser": {
+      const summary = await launchChromeDebugBrowser(
+        orchestrator.getProjectRoot(),
+        snapshot.config.browser.attachUrl,
+        snapshot.config.browser.userDataDir,
+      );
+      return { result: { summary }, events };
     }
     default:
       return { result: { summary: "No workflow executed." }, events };

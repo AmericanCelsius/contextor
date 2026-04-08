@@ -7,11 +7,12 @@ import { BrowserPageSummary, RunEvent, WorkflowResult } from "../core/types";
 import { clearTerminalViewport, getRecommendedFolderPaths } from "../utils/system";
 import { TUI_ACTIONS } from "./actions";
 import { completeFolderPath, executeWorkflow, getFolderPathStatus, loadDashboardSnapshot } from "./controller";
-import { ActionMenu, BootSplash, ConfirmQuitPane, FooterBar, FormPane, InfoPane, QuitSplash, WorkspacePane } from "./components";
+import { ActionMenu, BootSplash, ConfirmActionPane, ConfirmQuitPane, FooterBar, FormPane, InfoPane, QuitSplash, WorkspacePane } from "./components";
 import { TUI_THEME } from "./theme";
 import {
   DashboardSnapshot,
   TuiAction,
+  TuiConfirmationState,
   TuiFormField,
   TuiFormInsight,
   TuiInputTrace,
@@ -33,14 +34,20 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
   const [activePanelView, setActivePanelView] = useState<TuiPanelView>("browser");
   const [bootVisible, setBootVisible] = useState(true);
   const [quitConfirmVisible, setQuitConfirmVisible] = useState(false);
+  const [confirmationState, setConfirmationState] = useState<TuiConfirmationState | null>(null);
   const [quitting, setQuitting] = useState(false);
   const [tick, setTick] = useState(0);
   const [activeFormAction, setActiveFormAction] = useState<TuiAction | null>(null);
+  const [pendingFormSubmission, setPendingFormSubmission] = useState<{
+    action: TuiAction;
+    values: Record<string, string>;
+  } | null>(null);
   const [formFields, setFormFields] = useState<TuiFormField[]>([]);
   const [activeFieldIndex, setActiveFieldIndex] = useState(0);
   const [activeTextCursorIndex, setActiveTextCursorIndex] = useState(0);
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(0);
   const [lastInput, setLastInput] = useState<TuiInputTrace | null>(null);
+  const [runAbortController, setRunAbortController] = useState<AbortController | null>(null);
   const [recommendedFolderPaths, setRecommendedFolderPaths] = useState<string[]>([]);
   const [folderPathStatus, setFolderPathStatus] = useState<TuiPathStatus>({
     state: "idle",
@@ -178,7 +185,53 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
       return;
     }
 
+    if (confirmationState) {
+      if (key.return) {
+        if (confirmationState.type === "folder-submit" && pendingFormSubmission) {
+          recordInput(label, "Confirm folder compile");
+          setConfirmationState(null);
+          void beginWorkflow(pendingFormSubmission.action, pendingFormSubmission.values);
+          return;
+        }
+
+        if (confirmationState.type === "abort-run") {
+          recordInput(label, "Confirm workflow abort");
+          setConfirmationState(null);
+          setRunState((current) => ({
+            ...current,
+            abortRequested: true,
+            progressLabel: "Abort requested. Stopping after the current file operation...",
+            message: "Abort requested. Contextor will stop after the current file operation completes.",
+          }));
+          runAbortController?.abort();
+          return;
+        }
+      }
+
+      if (key.escape || input === "n" || input === "c") {
+        recordInput(label, "Cancel confirmation");
+        setConfirmationState(null);
+      }
+      return;
+    }
+
     if (runState.state === "running") {
+      if (runState.abortable && input === "x" && !runState.abortRequested) {
+        recordInput(label, "Open abort confirmation");
+        setConfirmationState({
+          type: "abort-run",
+          title: "ABORT WORKFLOW",
+          message: "Abort the current folder compile?",
+          details: [
+            runState.runDir ? `Run: ${runState.runDir}` : "Folder compile is active.",
+            "Contextor will stop after the current file operation completes.",
+          ],
+          confirmLabel: "Abort run",
+          cancelLabel: "Return to workflow",
+        });
+        return;
+      }
+
       if (label) {
         recordInput(label, "Input ignored while workflow is running");
       }
@@ -272,6 +325,12 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
       return;
     }
 
+    if (input === "g") {
+      recordInput(label, "Launch Chrome debug browser");
+      void handleAction(findAction("launch-browser"));
+      return;
+    }
+
     if (input === "o") {
       recordInput(label, "Open latest output folder");
       void handleAction(findAction("open-output"));
@@ -314,8 +373,90 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
     });
   }
 
+  async function beginWorkflow(action: TuiAction, values: Record<string, string>): Promise<void> {
+    if (!snapshot) {
+      return;
+    }
+
+    const abortController = action.id === "folder" ? new AbortController() : null;
+    setRunAbortController(abortController);
+    setPendingFormSubmission(null);
+    setActiveFormAction(null);
+    setFormFields([]);
+    setActiveFieldIndex(0);
+    setActiveTextCursorIndex(0);
+    setActiveSuggestionIndex(0);
+    setRunState({
+      state: "running",
+      title: action.label,
+      message: values.goal ? `Running ${action.label.toLowerCase()} for "${values.goal}"...` : action.description,
+      progressLabel: "Preparing workflow...",
+      liveLogs: [],
+      eventCount: 0,
+      progressCurrent: 0,
+      progressTotal: 0,
+      progressUnit: undefined,
+      progressPhase: undefined,
+      actionId: action.id,
+      abortable: action.id === "folder",
+      abortRequested: false,
+    });
+
+    try {
+      const execution = await executeWorkflow(props.orchestrator, action.id, values, snapshot, handleRunEvent, {
+        signal: abortController?.signal,
+      });
+      await refreshDashboard();
+
+      if (isWorkflowResult(execution.result)) {
+        const workflowResult = execution.result;
+        setRunState((current) => ({
+          ...current,
+          state: "success",
+          title: action.label,
+          message: workflowResult.summary,
+          result: workflowResult,
+          runDir: workflowResult.runDir,
+          progressLabel: "Workflow complete.",
+          progressCurrent: current.progressTotal ?? current.progressCurrent,
+          progressTotal: current.progressTotal,
+          progressUnit: current.progressUnit,
+          abortable: false,
+          abortRequested: false,
+        }));
+      } else {
+        setRunState({
+          state: "idle",
+          title: action.label,
+          message: execution.result.summary,
+          liveLogs: [],
+          eventCount: execution.events.length,
+          actionId: action.id,
+          abortable: false,
+          abortRequested: false,
+        });
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const aborted = isAbortMessage(message) || abortController?.signal.aborted;
+      setRunState((current) => ({
+        ...current,
+        state: aborted ? "aborted" : "error",
+        title: action.label,
+        message,
+        progressLabel: aborted ? "Workflow aborted." : current.progressLabel,
+        abortable: false,
+      }));
+    } finally {
+      setRunAbortController(null);
+      setConfirmationState((current) => (current?.type === "abort-run" ? null : current));
+    }
+  }
+
   async function handleAction(action: TuiAction): Promise<void> {
     if (action.createFields) {
+      setConfirmationState(null);
+      setPendingFormSubmission(null);
       const nextFields = action.createFields();
       setActiveFormAction(action);
       setFormFields(nextFields);
@@ -336,6 +477,7 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
     }
 
     if (action.panelView) {
+      setConfirmationState(null);
       setActivePanelView(action.panelView);
       setRunState({
         state: "idle",
@@ -350,52 +492,8 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
     if (!snapshot) {
       return;
     }
-
-    setRunState({
-      state: "running",
-      title: action.label,
-      message: action.description,
-      progressLabel: "Preparing workflow...",
-      liveLogs: [],
-      eventCount: 0,
-      progressCurrent: 0,
-      progressTotal: 0,
-      progressUnit: undefined,
-      progressPhase: undefined,
-    });
-
-    try {
-      const execution = await executeWorkflow(props.orchestrator, action.id, {}, snapshot, handleRunEvent);
-      await refreshDashboard();
-
-      if (isWorkflowResult(execution.result)) {
-        const workflowResult = execution.result;
-        setRunState((current) => ({
-          ...current,
-          state: "success",
-          title: action.label,
-          message: workflowResult.summary,
-          result: workflowResult,
-          runDir: workflowResult.runDir,
-          progressLabel: "Workflow complete.",
-        }));
-      } else {
-        setRunState({
-          state: "idle",
-          title: action.label,
-          message: execution.result.summary,
-          liveLogs: [],
-          eventCount: execution.events.length,
-        });
-      }
-    } catch (error) {
-      setRunState((current) => ({
-        ...current,
-        state: "error",
-        title: action.label,
-        message: error instanceof Error ? error.message : String(error),
-      }));
-    }
+    setConfirmationState(null);
+    await beginWorkflow(action, {});
   }
 
   async function primeFolderForm(initialFields: TuiFormField[]): Promise<void> {
@@ -515,8 +613,13 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
     }
 
     if (key.return) {
-      recordInput(label, `Submit ${activeFormAction.label}`);
-      void submitForm();
+      if (activeFormAction.id === "folder") {
+        recordInput(label, "Open folder compile confirmation");
+        void submitForm(true);
+      } else {
+        recordInput(label, `Submit ${activeFormAction.label}`);
+        void submitForm(false);
+      }
       return;
     }
 
@@ -552,6 +655,21 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
       const nextValue =
         currentField.value.slice(0, activeTextCursorIndex) + currentField.value.slice(activeTextCursorIndex + 1);
       updateField(currentField.id, nextValue);
+      return;
+    }
+
+    if (isClearFieldShortcut(input, key)) {
+      updateField(currentField.id, "");
+      setActiveTextCursorIndex(0);
+      if (currentField.id === "folderPath") {
+        setFolderPathStatus({
+          state: "idle",
+          message: "Enter a folder path. Quotes and bracketed names are accepted.",
+          matches: [],
+          recommendedPaths: recommendedFolderPaths,
+        });
+      }
+      recordInput(describeInput(input, key) || "Ctrl+U", `Clear ${currentField.label}`);
       return;
     }
 
@@ -600,65 +718,46 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
     );
   }
 
-  async function submitForm(): Promise<void> {
+  async function submitForm(requireConfirmation: boolean): Promise<void> {
     if (!activeFormAction || !snapshot) {
       return;
     }
 
     const values = Object.fromEntries(formFields.map((field) => [field.id, field.value]));
-    setRunState({
-      state: "running",
-      title: activeFormAction.label,
-      message: `Running ${activeFormAction.label.toLowerCase()}...`,
-      progressLabel: "Preparing workflow...",
-      liveLogs: [],
-      eventCount: 0,
-      progressCurrent: 0,
-      progressTotal: 0,
-      progressUnit: undefined,
-      progressPhase: undefined,
-    });
-
-    try {
-      const execution = await executeWorkflow(props.orchestrator, activeFormAction.id, values, snapshot, handleRunEvent);
-      setActiveFormAction(null);
-      setFormFields([]);
-      setActiveFieldIndex(0);
-      setActiveTextCursorIndex(0);
-      setActiveSuggestionIndex(0);
-      await refreshDashboard();
-
-      if (isWorkflowResult(execution.result)) {
-        const workflowResult = execution.result;
-        setRunState((current) => ({
-          ...current,
-          state: "success",
-          title: activeFormAction.label,
-          message: workflowResult.summary,
-          result: workflowResult,
-          runDir: workflowResult.runDir,
-          progressLabel: "Workflow complete.",
-          progressCurrent: workflowResult.artifactPaths.length > 0 ? workflowResult.artifactPaths.length : current.progressCurrent,
-          progressTotal: current.progressTotal,
-          progressUnit: current.progressUnit,
-        }));
-      } else {
+    if (activeFormAction.id === "folder") {
+      if (folderPathStatus.state !== "ok") {
         setRunState({
-          state: "idle",
+          state: "error",
           title: activeFormAction.label,
-          message: execution.result.summary,
+          message: "Folder Path must resolve to an allowed directory before the compile can start.",
           liveLogs: [],
-          eventCount: execution.events.length,
+          eventCount: 0,
+          actionId: activeFormAction.id,
+          abortable: false,
+          abortRequested: false,
         });
+        return;
       }
-    } catch (error) {
-      setRunState((current) => ({
-        ...current,
-        state: "error",
-        title: activeFormAction.label,
-        message: error instanceof Error ? error.message : String(error),
-      }));
+
+      if (requireConfirmation) {
+        setPendingFormSubmission({ action: activeFormAction, values });
+        setConfirmationState({
+          type: "folder-submit",
+          title: "CONFIRM FOLDER COMPILE",
+          message: "Start this folder compile?",
+          details: [
+            `Folder: ${folderPathStatus.resolvedPath || values.folderPath}`,
+            `Goal: ${values.goal || "summarize this project folder"}`,
+            `File limit: ${(values.limit || "all").trim() || "all"}`,
+          ],
+          confirmLabel: "Start folder compile",
+          cancelLabel: "Return to the form",
+        });
+        return;
+      }
     }
+
+    await beginWorkflow(activeFormAction, values);
   }
 
   function handleRunEvent(event: RunEvent): void {
@@ -710,6 +809,7 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
           runDir: event.runDir,
           progressLabel: "Workflow failed.",
           message: event.error || current.message,
+          abortable: false,
         };
       }
 
@@ -717,12 +817,18 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
         ...current,
         runDir: event.runDir,
         progressLabel: event.summary || "Workflow complete.",
+        abortable: false,
+        abortRequested: false,
       };
     });
   }
 
   if (bootVisible) {
     return <BootSplash tick={tick} />;
+  }
+
+  if (confirmationState) {
+    return <ConfirmActionPane tick={tick} confirmation={confirmationState} />;
   }
 
   if (quitConfirmVisible) {
@@ -928,8 +1034,13 @@ function describeInput(
     rightArrow?: boolean;
     backspace?: boolean;
     delete?: boolean;
+    ctrl?: boolean;
+    meta?: boolean;
   },
 ): string {
+  if (isClearFieldShortcut(input, key)) {
+    return key.meta ? "Cmd+K" : "Ctrl+U";
+  }
   if (isBackspaceKey(input, key)) {
     return "Backspace";
   }
@@ -995,6 +1106,16 @@ function isForwardDeleteKey(
   return key.delete === true && (input === "\u001b[3~" || input === "\u001b[3;5~");
 }
 
+function isClearFieldShortcut(
+  input: string,
+  key: {
+    ctrl?: boolean;
+    meta?: boolean;
+  },
+): boolean {
+  return input === "\u0015" || (key.ctrl === true && input.toLowerCase() === "u") || (key.meta === true && input.toLowerCase() === "k");
+}
+
 function nextPanelView(current: TuiPanelView, delta: number): TuiPanelView {
   const currentIndex = PANEL_ORDER.indexOf(current);
   return PANEL_ORDER[wrapIndex(currentIndex + delta, PANEL_ORDER.length)]!;
@@ -1033,4 +1154,8 @@ function isWorkflowResult(
   result: { summary: string } | WorkflowResult,
 ): result is WorkflowResult {
   return "workflow" in result && "runDir" in result && "contextMarkdownPath" in result;
+}
+
+function isAbortMessage(message: string): boolean {
+  return /aborted by operator/i.test(message) || /abort(ed)?/i.test(message);
 }

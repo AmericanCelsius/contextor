@@ -1,5 +1,9 @@
+import fs from "node:fs/promises";
 import { spawn } from "node:child_process";
+import os from "node:os";
 import path from "node:path";
+
+import { detectInstalledBrowserExecutable } from "./files";
 
 export function openPathInShell(targetPath: string): void {
   if (process.platform === "darwin") {
@@ -43,6 +47,34 @@ export function clearTerminalScreen(): void {
 
 export function clearTerminalViewport(): void {
   process.stdout.write("\u001B[2J\u001B[3J\u001B[H");
+}
+
+export async function launchChromeDebugBrowser(projectRoot: string, attachUrl: string, userDataDir?: string): Promise<string> {
+  const port = parseAttachPort(attachUrl);
+  const helperScript = path.join(projectRoot, "scripts", "open-chrome-debug.sh");
+  if (await fileExists(helperScript)) {
+    launchDetached(helperScript, [String(port)], projectRoot);
+    return `Launched Chrome debug helper on port ${port}. This opens a separate automation profile.`;
+  }
+
+  const executablePath = await detectInstalledBrowserExecutable();
+  if (!executablePath) {
+    throw new Error("No Chrome/Chromium executable was found. Install Chrome or keep using scripts/open-chrome-debug.sh.");
+  }
+
+  const profilePath = userDataDir ? path.resolve(userDataDir) : path.join(os.tmpdir(), "contextor-chrome-profile");
+  await fs.mkdir(profilePath, { recursive: true });
+  launchDetached(
+    executablePath,
+    [
+      `--remote-debugging-port=${port}`,
+      `--user-data-dir=${profilePath}`,
+      "--no-first-run",
+      "--no-default-browser-check",
+    ],
+    projectRoot,
+  );
+  return `Launched Chrome at ${executablePath} on port ${port}. This opens a separate automation profile.`;
 }
 
 export async function getRecommendedFolderPaths(
@@ -101,4 +133,32 @@ async function collectCommandOutput(command: string, args: string[]): Promise<st
       reject(new Error(`Command failed (${command} ${args.join(" ")}): exit code ${code ?? "unknown"}`));
     });
   });
+}
+
+function launchDetached(command: string, args: string[], cwd?: string): void {
+  const child = spawn(command, args, {
+    cwd,
+    detached: true,
+    stdio: "ignore",
+    env: process.env,
+  });
+  child.unref();
+}
+
+function parseAttachPort(attachUrl: string): number {
+  try {
+    const parsed = new URL(attachUrl);
+    return Number(parsed.port || "9222");
+  } catch {
+    return 9222;
+  }
+}
+
+async function fileExists(targetPath: string): Promise<boolean> {
+  try {
+    await fs.access(targetPath);
+    return true;
+  } catch {
+    return false;
+  }
 }

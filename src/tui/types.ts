@@ -14,6 +14,7 @@ export type TuiActionId =
   | "folder"
   | "page-export"
   | "instagram-audit"
+  | "launch-browser"
   | "open-output"
   | "view-logs"
   | "view-runs"
@@ -59,7 +60,7 @@ export interface DashboardSnapshot {
 }
 
 export interface TuiRunState {
-  state: "idle" | "running" | "success" | "error";
+  state: "idle" | "running" | "success" | "error" | "aborted";
   title: string;
   message: string;
   result?: WorkflowResult;
@@ -71,6 +72,9 @@ export interface TuiRunState {
   progressTotal?: number;
   progressUnit?: string;
   progressPhase?: string;
+  actionId?: TuiActionId;
+  abortable?: boolean;
+  abortRequested?: boolean;
 }
 
 export interface TuiInputTrace {
@@ -90,4 +94,13 @@ export interface TuiPathStatus {
 export interface TuiWorkflowExecutionResult {
   result: WorkflowResult | { summary: string };
   events: RunEvent[];
+}
+
+export interface TuiConfirmationState {
+  type: "folder-submit" | "abort-run";
+  title: string;
+  message: string;
+  details: string[];
+  confirmLabel: string;
+  cancelLabel: string;
 }
