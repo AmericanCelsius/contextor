@@ -1,28 +1,16 @@
 # Contextor
 
-Contextor is a local-first context aggregation and browser automation tool for macOS. It compiles browser tabs, selected folders, and dynamic pages into dense output bundles under `output/runs/<timestamp>/`.
+Contextor is a local-first context aggregation and browser automation tool for macOS. In `v0.2.0`, the primary GUI surface is a true terminal-contained TUI built with Ink. The old browser dashboard is no longer the main interface.
 
-Phase 1 ships:
+## What Changed In v0.2.0
 
-- A working CLI: `contextor`
-- A lightweight local GUI dashboard
-- Browser workflows for tabs, page export, and a read-only Instagram audit
-- Filesystem compilation for `.txt`, `.md`, `.pdf`, `.json`, `.csv`, and `.docx`
-- Timestamped outputs with logs, manifests, and page artifacts
+- Replaced the browser-first HTML dashboard with a terminal-contained TUI
+- Added `contextor tui` and `contextor dashboard`
+- Kept the existing core workflows intact
+- Improved Chrome attach diagnostics for open-tab workflows
+- Deprecated `contextor gui` as a browser-surface entrypoint; it now forwards to the TUI
 
-## What Works Now
-
-- Compile open Chrome or Chromium tabs into a single `context.md`
-- Compile a selected local folder into a single `context.md`
-- Expand and export the current page to markdown, text, and PDF
-- Run a local GUI dashboard for the main workflows
-- Generate a read-only Instagram non-mutuals audit report
-
-## Requirements
-
-- macOS on Apple Silicon or Intel
-- Node.js 20+
-- Google Chrome or Chromium installed
+The TUI is designed as a retro-futuristic command console with panel layout, keyboard navigation, recent runs, logs, config summary, and browser attach status.
 
 ## Install
 
@@ -31,11 +19,17 @@ npm install
 npm run build
 ```
 
+Optional:
+
+```bash
+npm link
+```
+
 ## First Run
 
-### 1. Launch Chrome with Remote Debugging
+### 1. Launch Chrome With Remote Debugging
 
-For Contextor to read the tabs already open in your real browser session, Chrome must be started with remote debugging enabled.
+Open-tab workflows require attaching to the real Chrome session you want Contextor to inspect.
 
 Close Chrome completely, then launch it from Terminal:
 
@@ -43,7 +37,7 @@ Close Chrome completely, then launch it from Terminal:
 "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --remote-debugging-port=9222
 ```
 
-If you prefer a separate automation profile instead of your main profile, use:
+If you only want a separate automation profile:
 
 ```bash
 ./scripts/open-chrome-debug.sh
@@ -51,133 +45,36 @@ If you prefer a separate automation profile instead of your main profile, use:
 
 Important:
 
-- The dedicated script launches a separate profile, so it does not include your existing tabs.
-- To compile your real currently open tabs, the browser instance that already has those tabs must be the one launched with `--remote-debugging-port=9222`.
+- The dedicated script launches a separate profile and does not include your existing tabs.
+- `tabs`, `page-export`, and `social-audit` are attach-oriented workflows. They do not silently treat a fresh automation profile as your already-open browsing session.
 
-### 2. Verify Config
-
-Contextor reads `config/contextor.config.json`.
-
-Default behavior:
-
-- Allowed directories: repo root, `~/Desktop`, `~/Documents`, `~/Downloads`
-- Output root: `./output`
-- Browser mode: `attach-or-launch`
-- Social audit: dry-run / read-only
-
-If you want to compile folders outside those locations, add them to `allowedDirectories`.
-
-### 3. Run a Real Workflow
-
-Compile all open tabs:
+### 2. Launch The TUI
 
 ```bash
-node dist/cli/index.js tabs --all --goal "summarize my current browser context"
+contextor tui
 ```
 
-Compile a folder:
+Or without `npm link`:
 
 ```bash
-node dist/cli/index.js folder "/absolute/path/to/folder" --goal "summarize this project folder"
+node dist/cli/index.js tui
 ```
 
-Export the current LinkedIn page:
+You can also use:
 
 ```bash
-node dist/cli/index.js page-export --current --mode linkedin --goal "export this LinkedIn page"
+contextor dashboard
 ```
 
-Run the read-only Instagram audit:
+Deprecated alias:
 
 ```bash
-node dist/cli/index.js social-audit --platform instagram --mode non-mutuals --dry-run
+contextor gui
 ```
 
-Start the GUI:
+### 3. Use The Command Grid
 
-```bash
-node dist/cli/index.js gui --port 4317
-```
-
-Open:
-
-```text
-http://127.0.0.1:4317
-```
-
-## CLI Reference
-
-### Tabs
-
-```bash
-contextor tabs --all
-contextor tabs --match "brightspace|gradescope|edstem"
-contextor tabs --current
-```
-
-Behavior:
-
-- `--all` captures all open tabs
-- `--match` matches against both URL and title
-- default behavior captures the current visible tab
-
-### Folder
-
-```bash
-contextor folder "/absolute/path/to/folder"
-contextor folder "./docs" --goal "summarize the documentation"
-```
-
-Behavior:
-
-- recursively scans supported files
-- scores them by recency and goal overlap
-- compiles the highest-signal files into one context bundle
-
-### Compile
-
-```bash
-contextor compile --goal "summarize my homework context" --tabs --all-tabs
-contextor compile --goal "combine folder and browser context" --folder "/path/to/folder" --tabs
-```
-
-### Page Export
-
-```bash
-contextor page-export --current --mode linkedin
-contextor page-export --current --mode generic
-```
-
-Behavior:
-
-- expands dynamic content
-- scrolls until stable
-- exports markdown, text, and PDF when supported by the page/browser
-
-### Social Audit
-
-```bash
-contextor social-audit --platform instagram --mode non-mutuals --dry-run
-```
-
-Behavior:
-
-- reads follower/following lists already open in Chrome
-- compares following vs followers
-- filters likely brands, institutions, and public figures heuristically
-- exports `instagram_non_mutuals.md` and `instagram_non_mutuals.csv`
-
-Phase 1 safety:
-
-- no unfollowing
-- no account-changing actions
-- `--allow-account-actions` and `--confirm` are reserved and still do not perform actions in this milestone
-
-## GUI
-
-The GUI is a lightweight local dashboard with a retro arcade shell.
-
-Available actions:
+The TUI supports:
 
 - Compile Open Tabs
 - Compile Folder
@@ -185,64 +82,64 @@ Available actions:
 - Instagram Non-Mutuals Audit
 - Open Latest Output Folder
 - View Latest Logs
+- View Recent Runs
+- View Current Config Summary
 
-The GUI also shows:
+Keyboard-first controls:
 
-- current workflow status
-- recent runs
-- output paths
-- latest logs
-- config preview
+- `↑` / `↓` select action
+- `Enter` run or open a form
+- `Tab` switch inspect panels
+- `r` refresh
+- `o` open the latest output folder
+- `l` focus logs
+- `u` focus recent runs
+- `c` focus config
+- `b` focus browser status
+- `q` quit
 
-## Output Structure
+## CLI Reference
 
-Each run creates:
+### TUI
 
-```text
-output/
-  runs/
-    <timestamp>/
-      context.md
-      context.txt
-      logs/
-        run.log
-      artifacts/
-        *.md
-        *.txt
-        *.pdf
-        instagram_non_mutuals.md
-        instagram_non_mutuals.csv
-      manifests/
-        sources.json
-        instagram_audit.json
+```bash
+contextor tui
+contextor dashboard
 ```
 
-Example:
+### Browser Status
 
-```text
-output/runs/2026-04-07T21-55-47/context.md
-output/runs/2026-04-07T21-55-47/artifacts/page.pdf
-output/runs/2026-04-07T21-55-47/manifests/sources.json
+```bash
+contextor browser-status
 ```
 
-## Browser Strategy Notes
+This prints:
 
-Built-in strategies:
+- attach URL
+- current browser mode
+- whether the CDP endpoint is reachable
+- usable tab count
+- current attach issues
 
-- `generic`
-- `linkedin`
-- `gmail`
-- `portal`
-- `instagram`
+### Tabs
 
-Highlights:
+```bash
+contextor tabs --all --goal "summarize my current browser context"
+contextor tabs --current
+contextor tabs --match "brightspace|gradescope|edstem"
+```
 
-- LinkedIn uses repeated "more/show more/read more" passes and scroll stabilization
-- Gmail/webmail extraction is read-only
-- Course portal extraction is tuned for Brightspace, Gradescope, EdStem, Canvas-like pages
-- Instagram audit is read-only and review-oriented
+Behavior:
 
-## Filesystem Strategy Notes
+- `--all` captures all attached open tabs
+- `--match` matches against both URL and title
+- if Chrome is not actually exposing the CDP endpoint, Contextor now fails with an explicit attach error instead of the older vague “No browser tabs matched”
+
+### Folder
+
+```bash
+contextor folder "/absolute/path/to/folder" --goal "summarize this project folder"
+```
 
 Supported file types:
 
@@ -253,75 +150,114 @@ Supported file types:
 - `.csv`
 - `.docx`
 
-Contextor does not blindly dump whole folders. It:
+### Page Export
 
-- scans recursively
-- extracts text
-- ranks files by relevance
-- suppresses duplicate content
-- compiles excerpts, summaries, and key points
+```bash
+contextor page-export --current --mode linkedin --goal "export this LinkedIn page"
+```
 
-## Config
+Exports:
 
-Main file:
+- markdown
+- text
+- PDF
+
+### Social Audit
+
+```bash
+contextor social-audit --platform instagram --mode non-mutuals --dry-run
+```
+
+Still read-only in `v0.2.0`.
+
+## Output Structure
+
+Each run writes to:
+
+```text
+output/runs/<timestamp>/
+```
+
+With artifacts such as:
+
+```text
+context.md
+context.txt
+logs/run.log
+artifacts/*.md
+artifacts/*.txt
+artifacts/*.pdf
+manifests/sources.json
+```
+
+Instagram audit runs also write their audit artifacts in the same timestamped bundle.
+
+## Browser Attach Notes
+
+The attach URL is configured in:
 
 ```text
 config/contextor.config.json
 ```
 
-Key fields:
+Current default:
 
-- `allowedDirectories`
-- `outputDirectory`
-- `browser.attachUrl`
-- `browser.mode`
-- `browser.userDataDir`
-- `strategies.enabled`
-- `redaction`
-- `socialAudit`
-- `safety`
+```json
+{
+  "browser": {
+    "attachUrl": "http://127.0.0.1:9222",
+    "mode": "attach-or-launch"
+  }
+}
+```
 
-## Permissions and macOS Notes
+Operational reality for the current product:
 
-You may need to grant:
-
-- Files and Folders access for Terminal or your Node runtime if you want to read `Desktop`, `Documents`, or `Downloads`
-- Browser remote debugging access by launching Chrome with `--remote-debugging-port=9222`
-
-Contextor does not require Accessibility permissions for CDP-based browser control.
+- open-tab workflows require a real attachable Chrome session
+- the TUI browser panel and `browser-status` command make attach failures visible
+- attach failure messaging now explains what to relaunch and why
+- Contextor never closes the user’s attached Chrome session
 
 ## Safety Defaults
 
-Default safety posture:
+Contextor remains:
 
 - local-first
 - read-only by default
 - no email sending
 - no portal submission
-- no deletion or archiving
-- no account-changing actions
-- logs written for every run
-- obvious tokens and cookie headers redacted where feasible
+- no deleting or archiving
+- no account-changing social actions
+- logging and manifest generation are preserved for each run
+
+## TUI Notes
+
+The TUI is built with Ink and custom terminal panels. `@inkjs/ui` was evaluated as part of the integration path, but the shipped interface relies primarily on custom Ink components. `TerminalTextEffects` was evaluated as inspiration only and was not adopted as a Python runtime dependency.
+
+Implemented visual polish:
+
+- alternate-screen terminal containment
+- retro command-console panel styling
+- lightweight built-in boot splash
+
+Not implemented:
+
+- external Python animation runtime
+- browser-based GUI as the primary surface
 
 ## Development
-
-Install and verify:
 
 ```bash
 npm install
 npm run typecheck
 npm run build
-```
-
-Useful commands:
-
-```bash
-npm run gui
 npm run smoke:folder
 ```
 
-## Known Phase 1 Constraints
+Useful local commands:
 
-- Existing real tabs require Chrome to be launched with remote debugging enabled
-- The Instagram audit works best when follower and following lists are already open and scrolled in Chrome
-- Browser exports depend on the page being accessible in the attached Chrome session
+```bash
+node dist/cli/index.js tui
+node dist/cli/index.js browser-status
+node dist/cli/index.js tabs --all --goal "summarize my current browser context"
+```

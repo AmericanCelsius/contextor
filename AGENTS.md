@@ -2,10 +2,12 @@
 
 ## Project Purpose
 
-Contextor is a local-first context compiler and browser automation tool. The primary product surfaces are:
+Contextor is a local-first context compiler and browser automation tool. As of `v0.2.0`, the primary interactive UI is the terminal-contained TUI under `src/tui/`.
+
+Primary surfaces:
 
 - CLI in `src/cli/index.ts`
-- local dashboard in `src/gui/server.ts` plus `src/gui/public/`
+- TUI in `src/tui/`
 - orchestration in `src/core/orchestrator.ts`
 
 ## Core Constraints
@@ -13,7 +15,8 @@ Contextor is a local-first context compiler and browser automation tool. The pri
 - Keep the orchestrator simple and deterministic
 - Privacy and read-only defaults matter more than aggressive automation
 - Do not add autonomous multi-agent behavior
-- Do not add risky browser actions by default
+- Do not add risky browser or social actions by default
+- Do not reintroduce a browser-first GUI as the main interface
 
 ## Key Workflows
 
@@ -21,6 +24,8 @@ Contextor is a local-first context compiler and browser automation tool. The pri
 - `folder`: compile a folder into `context.md`
 - `page-export`: export current page to markdown, text, PDF
 - `social-audit`: read-only Instagram non-mutuals audit
+- `browser-status`: inspect CDP/browser attach health
+- `tui`: launch the main terminal dashboard
 
 ## Important Files
 
@@ -29,7 +34,7 @@ Contextor is a local-first context compiler and browser automation tool. The pri
 - `src/adapters/filesystemAdapter.ts`
 - `src/compiler/contextCompiler.ts`
 - `src/workflows/*.ts`
-- `src/gui/server.ts`
+- `src/tui/*`
 
 ## Build Commands
 
@@ -37,20 +42,30 @@ Contextor is a local-first context compiler and browser automation tool. The pri
 npm install
 npm run typecheck
 npm run build
+npm run smoke:folder
 ```
 
 ## Browser Notes
 
-- Existing user tabs require Chrome launched with `--remote-debugging-port=9222`
-- Dedicated automation profile launch falls back to `browser.userDataDir`
-- Never close the user's attached Chrome session from code
+- open-tab workflows require a Chrome session launched with `--remote-debugging-port=9222`
+- browser attach diagnostics are exposed through `browser-status` and the TUI browser panel
+- do not silently treat a fresh launched profile as the user’s existing tab session
+- never close the user’s attached Chrome session from code
+
+## TUI Notes
+
+- Ink is the primary TUI runtime
+- the TUI is keyboard-first and terminal-contained
+- keep visual styling intentional, readable, and slightly retro
+- lightweight built-in splash effects are acceptable
+- avoid external animation runtimes unless complexity stays very low
 
 ## Safety Notes
 
-- Keep communication and portal workflows read-only
-- Keep Instagram audit review-only unless the user explicitly requests a separate action implementation
-- Preserve logging and output manifests
-- Respect `allowedDirectories`
+- keep communication and portal workflows read-only
+- keep Instagram audit review-only unless explicitly expanded in a later milestone
+- preserve logging and output manifests
+- respect `allowedDirectories`
 
 ## Output Contract
 
