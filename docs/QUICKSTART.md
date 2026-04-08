@@ -65,6 +65,19 @@ Folder compile notes:
 - the TUI confirms a folder compile before starting it
 - while a folder compile is running, press `x` to open the abort prompt
 
+Run a literal directory copy:
+
+```bash
+contextor copy-folder "/absolute/path/to/folder" --goal "create a literal directory copy for downstream review"
+```
+
+Literal directory copy notes:
+
+- this is separate from `Compile Folder`
+- it reuses the same path autocomplete and confirmation flow as the summarizer
+- it writes aggregated file bodies to root `context.md` and `context.txt`
+- while the workflow is running, press `x` to open the abort prompt
+
 Export the current LinkedIn page:
 
 ```bash

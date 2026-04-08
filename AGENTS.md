@@ -2,7 +2,7 @@
 
 ## Project Purpose
 
-Contextor is a local-first context compiler and browser automation tool. As of `v0.2.1`, the primary interactive UI is the terminal-contained TUI under `src/tui/`.
+Contextor is a local-first context compiler and browser automation tool. As of `v0.2.2`, the primary interactive UI is the terminal-contained TUI under `src/tui/`.
 
 Primary surfaces:
 
@@ -22,6 +22,7 @@ Primary surfaces:
 
 - `tabs`: compile open tabs into `context.md`
 - `folder`: compile a folder into `context.md`
+- `copy-folder`: export a literal directory copy into aggregated markdown/text outputs
 - `page-export`: export current page to markdown, text, PDF
 - `social-audit`: read-only Instagram non-mutuals audit
 - `browser-status`: inspect CDP/browser attach health
@@ -66,6 +67,7 @@ npm run smoke:folder
 - keep folder compile defaulted to `all` unless the operator explicitly narrows it
 - preserve the folder compile confirmation step before the run starts
 - keep folder compile abortable from the TUI once it is running
+- keep the literal directory-copy workflow separate from the summarizer, while reusing the same folder-path autocomplete UX
 - keep the TUI browser-launch helper available for separate Chrome debug profiles
 
 ## Safety Notes

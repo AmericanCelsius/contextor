@@ -1,14 +1,15 @@
 # Contextor
 
-Contextor is a local-first context aggregation and browser automation tool for macOS. In `v0.2.1`, the primary GUI surface is a true terminal-contained TUI built with Ink. The old browser dashboard is no longer the main interface.
+Contextor is a local-first context aggregation and browser automation tool for macOS. In `v0.2.2`, the primary GUI surface is a true terminal-contained TUI built with Ink. The old browser dashboard is no longer the main interface.
 
-## What Changed In v0.2.1
+## What Changed In v0.2.2
 
-- Preserved the `v0.2.0` TUI as the baseline and moved polish work into `v0.2.1`
+- Preserved the `v0.2.1` TUI as the baseline and moved the new directory-copy work into `v0.2.2`
 - Added animated startup, shutdown, run-progress, browser-connect, and path-validation indicators
 - Added live input echo so the last navigation or command key is always visible
 - Added folder-path autocomplete, recommended Finder/current working directory seeds, cursor movement, and quoted-path normalization for TUI path entry
 - Made folder compile default to `File Limit = all`, with progress feedback in both the TUI and `contextor folder`
+- Added `Copy Folder As Markdown/Text`, a separate literal directory-export workflow that aggregates recursive file bodies instead of summarizing them
 - Added descriptive run folder names: `output/runs/<timestamp>__<workflow>__<goal-slug>/`
 - Added `contextor launch` and `contextor start` as one-line bootstrap commands
 - Kept the existing core workflows intact and read-only by default
@@ -88,6 +89,7 @@ The TUI supports:
 
 - Compile Open Tabs
 - Compile Folder
+- Copy Folder As Markdown/Text
 - Export Current Page
 - Instagram Non-Mutuals Audit
 - Launch Chrome Debug Browser
@@ -101,10 +103,12 @@ Keyboard-first controls:
 - `↑` / `↓` select action
 - `Enter` run or open a form
 - `Enter` on the folder form opens a confirmation panel before the compile starts
+- `Enter` on the directory-copy form opens a confirmation panel before the export starts
 - `Tab` switch inspect panels, or autocomplete the folder path field when it is active
 - `Left` / `Right` move the cursor inside active text fields
 - `Ctrl+U` clear the active text field
 - `x` open the abort prompt while a folder compile is running
+- `x` also aborts the literal directory-copy workflow once it is running
 - `g` launch the Chrome debug browser helper from inside the TUI
 - `r` refresh
 - `o` open the latest output folder
@@ -167,6 +171,20 @@ Default behavior:
 - the TUI shows a confirmation step before the folder compile starts
 - once running, the TUI exposes a cancel prompt for the folder workflow
 
+### Literal Directory Copy
+
+```bash
+contextor copy-folder "/absolute/path/to/folder" --goal "create a literal directory copy for downstream review"
+```
+
+Behavior:
+
+- keeps `Compile Folder` separate from the literal copier workflow
+- reuses the same TUI folder-path autocomplete, path validation, and confirmation flow
+- recursively scans the selected directory and aggregates readable file bodies into root `context.md` and `context.txt`
+- attempts text extraction for common document formats and generic UTF-8 readable files
+- skips binary-looking files with explicit notes in the aggregated output and manifest
+
 Supported file types:
 
 - `.txt`
@@ -194,7 +212,7 @@ Exports:
 contextor social-audit --platform instagram --mode non-mutuals --dry-run
 ```
 
-Still read-only in `v0.2.1`.
+Still read-only in `v0.2.2`.
 
 ## Output Structure
 
