@@ -90,6 +90,7 @@ The TUI supports:
 - Compile Folder
 - Export Current Page
 - Instagram Non-Mutuals Audit
+- Launch Chrome Debug Browser
 - Open Latest Output Folder
 - View Latest Logs
 - View Recent Runs
@@ -99,8 +100,12 @@ Keyboard-first controls:
 
 - `↑` / `↓` select action
 - `Enter` run or open a form
+- `Enter` on the folder form opens a confirmation panel before the compile starts
 - `Tab` switch inspect panels, or autocomplete the folder path field when it is active
 - `Left` / `Right` move the cursor inside active text fields
+- `Ctrl+U` clear the active text field
+- `x` open the abort prompt while a folder compile is running
+- `g` launch the Chrome debug browser helper from inside the TUI
 - `r` refresh
 - `o` open the latest output folder
 - `l` focus logs
@@ -159,6 +164,8 @@ Default behavior:
 
 - scans all supported files unless you explicitly pass `--limit <count>`
 - shows a live progress bar in direct CLI mode
+- the TUI shows a confirmation step before the folder compile starts
+- once running, the TUI exposes a cancel prompt for the folder workflow
 
 Supported file types:
 

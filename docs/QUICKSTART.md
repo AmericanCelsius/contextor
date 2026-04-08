@@ -62,6 +62,8 @@ Folder compile notes:
 
 - default file limit is `all`
 - both the TUI and the direct CLI command show live folder progress
+- the TUI confirms a folder compile before starting it
+- while a folder compile is running, press `x` to open the abort prompt
 
 Export the current LinkedIn page:
 
@@ -81,6 +83,7 @@ output/runs/<timestamp>__<workflow>__<goal-slug>/
 - `contextor launch` and `contextor start` install, build, then open the TUI
 - `contextor gui` is only a deprecated alias to the TUI
 - the old browser dashboard is no longer the primary product surface
+- press `g` inside the TUI to launch the Chrome debug helper in a separate profile
 
 ## Safety Defaults
 

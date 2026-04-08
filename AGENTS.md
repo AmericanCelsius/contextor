@@ -64,6 +64,9 @@ npm run smoke:folder
 - keep folder path autocomplete and quoted-path handling working
 - preserve quit confirmation on `q`
 - keep folder compile defaulted to `all` unless the operator explicitly narrows it
+- preserve the folder compile confirmation step before the run starts
+- keep folder compile abortable from the TUI once it is running
+- keep the TUI browser-launch helper available for separate Chrome debug profiles
 
 ## Safety Notes
 
