@@ -159,25 +159,29 @@ export function ActionMenu(props: {
   width?: number | string;
   minHeight?: number;
   tick?: number;
+  active?: boolean;
 }): React.JSX.Element {
   const terminalWidth = process.stdout.columns ?? 120;
   const terminalRows = process.stdout.rows ?? 40;
   const detailWidth = terminalWidth < 120 ? 44 : 58;
   const compactList = terminalRows < 42;
-  const pulseOn = (props.tick ?? 0) % 2 === 0;
+  const pulseOn = Math.floor((props.tick ?? 0) / 4) % 2 === 0;
 
   return (
     <Panel title="COMMAND GRID" active width={props.width ?? 34} minHeight={props.minHeight ?? 24}>
       {props.actions.map((action, index) => {
         const selected = index === props.selectedIndex;
-        const titleColor = selected
+        const activeSelected = selected && props.active;
+        const titleColor = activeSelected
           ? pulseOn
             ? TUI_THEME.accentSoft
             : TUI_THEME.accent
-          : TUI_THEME.title;
+          : selected
+            ? TUI_THEME.accentSoft
+            : TUI_THEME.title;
         return (
           <Box key={action.id} marginBottom={1} flexDirection="column">
-            <Text color={titleColor} inverse={selected && pulseOn} bold={selected}>
+            <Text color={titleColor} inverse={activeSelected ? pulseOn : selected} bold={selected}>
               {selected ? ">" : " "} {index + 1}. {action.label}
             </Text>
             {!compactList || selected ? (
@@ -329,6 +333,8 @@ export function FormPane(props: {
   tick: number;
   minHeight?: number;
 }): React.JSX.Element {
+  const pulseOn = Math.floor(props.tick / 4) % 2 === 0;
+
   if (props.actionId === "task-console") {
     return <PromptConsolePane {...props} />;
   }
@@ -348,7 +354,7 @@ export function FormPane(props: {
             <Text color={active ? TUI_THEME.accentSoft : TUI_THEME.title}>
               {active ? ">" : " "} {field.label}
             </Text>
-            <Text color={field.value.length > 0 ? TUI_THEME.text : TUI_THEME.muted} inverse={active}>
+            <Text color={field.value.length > 0 ? TUI_THEME.text : TUI_THEME.muted} inverse={active ? pulseOn : false}>
               {renderedValue || " "}
             </Text>
             {field.hint ? <Text color={TUI_THEME.muted}>{field.hint}</Text> : null}
@@ -374,7 +380,11 @@ export function FormPane(props: {
           <Newline />
           <Text color={TUI_THEME.accentSoft}>Path Suggestions</Text>
           {props.suggestions.slice(0, 8).map((suggestion, index) => (
-            <Text key={`${index}-${suggestion}`} color={index === props.activeSuggestionIndex ? TUI_THEME.accentSoft : TUI_THEME.muted} inverse={index === props.activeSuggestionIndex}>
+            <Text
+              key={`${index}-${suggestion}`}
+              color={index === props.activeSuggestionIndex ? TUI_THEME.accentSoft : TUI_THEME.muted}
+              inverse={index === props.activeSuggestionIndex ? pulseOn : false}
+            >
               {index === props.activeSuggestionIndex ? ">" : " "} {truncate(suggestion, 94)}
             </Text>
           ))}
@@ -401,6 +411,7 @@ function PromptConsolePane(props: {
   tick: number;
   minHeight?: number;
 }): React.JSX.Element {
+  const pulseOn = Math.floor(props.tick / 4) % 2 === 0;
   const promptField = props.fields.find((field) => field.id === "taskPrompt");
   const promptFieldIndex = props.fields.findIndex((field) => field.id === "taskPrompt");
   const scopeField = props.fields.find((field) => field.id === "taskScope");
@@ -420,12 +431,18 @@ function PromptConsolePane(props: {
       <Newline />
       <Box borderStyle="double" borderColor={TUI_THEME.accent} paddingX={1} paddingY={0} flexDirection="column" marginBottom={1}>
         <Text color={TUI_THEME.title}>MISSION PROMPT</Text>
-        <Text color={TUI_THEME.text} inverse>{truncate(promptDisplay || " ", 108)}</Text>
+        <Text color={TUI_THEME.text} inverse={props.activeFieldIndex === promptFieldIndex ? pulseOn : false}>
+          {truncate(promptDisplay || " ", 108)}
+        </Text>
         <Text color={TUI_THEME.muted}>Type naturally. This box is modeled as a future operator prompt surface, not a web form.</Text>
       </Box>
       <Box flexDirection="column" marginBottom={1}>
-        <Text color={TUI_THEME.accentSoft}>Execution Scope :: <Text color={TUI_THEME.text}>{scopeLabel}</Text></Text>
-        <Text color={TUI_THEME.accentSoft}>Execution Mode :: <Text color={TUI_THEME.text}>{modeLabel}</Text></Text>
+        <Text color={props.activeFieldIndex === props.fields.findIndex((field) => field.id === "taskScope") && pulseOn ? TUI_THEME.accent : TUI_THEME.accentSoft}>
+          Execution Scope :: <Text color={TUI_THEME.text}>{scopeLabel}</Text>
+        </Text>
+        <Text color={props.activeFieldIndex === props.fields.findIndex((field) => field.id === "taskMode") && pulseOn ? TUI_THEME.accent : TUI_THEME.accentSoft}>
+          Execution Mode :: <Text color={TUI_THEME.text}>{modeLabel}</Text>
+        </Text>
         <Text color={TUI_THEME.warn}>Instagram audit is being retired from the main dashboard. Keep using this console for future arbitrary agent tasks.</Text>
       </Box>
       <Text color={TUI_THEME.title}>Suggested prompts</Text>
@@ -501,13 +518,13 @@ export function FooterBar(props: {
       </Text>
       <Text>
         <Text color={TUI_THEME.muted}>local=</Text>
-        <Text color={TUI_THEME.accentSoft} inverse>{props.runtimeInfo.localTimestamp}</Text>
+        <Text color={TUI_THEME.accentSoft}>{props.runtimeInfo.localTimestamp}</Text>
         <Text color={TUI_THEME.muted}> | utc=</Text>
-        <Text color={TUI_THEME.accent} inverse>{props.runtimeInfo.utcTimestamp}</Text>
+        <Text color={TUI_THEME.accent}>{props.runtimeInfo.utcTimestamp}</Text>
         {props.runtimeInfo.approximateLocation ? (
           <>
             <Text color={TUI_THEME.muted}> | location=</Text>
-            <Text color={TUI_THEME.ok} inverse>{props.runtimeInfo.approximateLocation}</Text>
+            <Text color={TUI_THEME.ok}>{props.runtimeInfo.approximateLocation}</Text>
           </>
         ) : null}
       </Text>

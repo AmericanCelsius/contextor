@@ -854,6 +854,7 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
           width={menuWidth}
           minHeight={panelMinHeight}
           tick={tick}
+          active={!activeFormAction}
         />
         <Box marginLeft={compactLayout ? 0 : 1} marginTop={compactLayout ? 1 : 0} flexGrow={1} flexDirection="column">
           {activeFormAction ? (
