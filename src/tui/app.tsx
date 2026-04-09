@@ -23,7 +23,10 @@ import {
 
 const PANEL_ORDER: TuiPanelView[] = ["browser", "runs", "logs", "config"];
 
-export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }): React.JSX.Element {
+export function ContextorTuiApp(props: {
+  orchestrator: ContextorOrchestrator;
+  onConfirmedQuit?: () => void;
+}): React.JSX.Element {
   const { exit } = useApp();
   const terminalWidth = process.stdout.columns ?? 120;
   const terminalRows = process.stdout.rows ?? 40;
@@ -181,6 +184,7 @@ export function ContextorTuiApp(props: { orchestrator: ContextorOrchestrator }):
       if (key.return || input === "q") {
         recordInput(label, "Confirm quit");
         setQuitConfirmVisible(false);
+        props.onConfirmedQuit?.();
         setQuitting(true);
         return;
       }

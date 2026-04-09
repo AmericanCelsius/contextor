@@ -167,6 +167,24 @@ export async function launchChromeDebugBrowser(projectRoot: string, attachUrl: s
   return `Launched Chrome at ${executablePath} on port ${port}. This opens a separate automation profile.`;
 }
 
+export async function closeActiveTerminalWindow(): Promise<void> {
+  if (process.platform !== "darwin") {
+    return;
+  }
+
+  const termProgram = String(process.env.TERM_PROGRAM || "");
+  const script = resolveTerminalCloseScript(termProgram);
+  if (!script) {
+    return;
+  }
+
+  try {
+    await collectCommandOutput("osascript", ["-e", script]);
+  } catch {
+    // Best-effort only. Contextor should still exit cleanly if the host terminal refuses the close request.
+  }
+}
+
 export async function getRecommendedFolderPaths(
   allowedDirectories: string[],
   cwd = process.cwd(),
@@ -233,6 +251,18 @@ function launchDetached(command: string, args: string[], cwd?: string): void {
     env: process.env,
   });
   child.unref();
+}
+
+function resolveTerminalCloseScript(termProgram: string): string | undefined {
+  if (termProgram === "Apple_Terminal") {
+    return 'tell application "Terminal" to if (count of windows) > 0 then close front window saving no';
+  }
+
+  if (termProgram === "iTerm.app") {
+    return 'tell application "iTerm2" to if current window is not missing value then close current window';
+  }
+
+  return undefined;
 }
 
 function isMissingPathError(error: unknown): boolean {
