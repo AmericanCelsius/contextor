@@ -1,14 +1,17 @@
 import path from "node:path";
 
 import { ContextorOrchestrator } from "../core/orchestrator";
-import { RunEvent } from "../core/types";
+import { BrowserConnectionDiagnostics, RunEvent } from "../core/types";
 import { launchChromeDebugBrowser, openPathInShell } from "../utils/system";
 import { autocompletePathInput, inspectPathInput } from "../utils/files";
 import { DashboardSnapshot, TuiActionId, TuiPathStatus, TuiWorkflowExecutionResult } from "./types";
 
-export async function loadDashboardSnapshot(orchestrator: ContextorOrchestrator): Promise<DashboardSnapshot> {
+export async function loadDashboardSnapshot(
+  orchestrator: ContextorOrchestrator,
+  options: { offlineMode?: boolean } = {},
+): Promise<DashboardSnapshot> {
   const [browser, recentRuns, latestLog] = await Promise.all([
-    orchestrator.inspectBrowser({ all: true }),
+    options.offlineMode ? Promise.resolve(createOfflineBrowserDiagnostics(orchestrator)) : orchestrator.inspectBrowser({ all: true }),
     orchestrator.listRecentRuns(8),
     orchestrator.getLatestLogSummary(20),
   ]);
@@ -18,6 +21,7 @@ export async function loadDashboardSnapshot(orchestrator: ContextorOrchestrator)
     recentRuns,
     latestLog,
     config: orchestrator.getConfig(),
+    offlineMode: Boolean(options.offlineMode),
   };
 }
 
@@ -36,7 +40,19 @@ export async function executeWorkflow(
   };
 
   switch (actionId) {
+    case "offline-mode":
+      return {
+        result: {
+          summary: snapshot.offlineMode
+            ? "Offline mode is active. Local folder compile, literal directory copy, output review, logs, and config views remain available without browser, network, API keys, or Chrome remote debugging."
+            : "Offline mode is available from `contextor offline`, `contextor tui --offline`, or `contextor start --offline`.",
+        },
+        events,
+      };
     case "tabs": {
+      if (snapshot.offlineMode) {
+        throw new Error("Offline mode is active. Browser tab capture is disabled; use local folder compile or literal directory copy.");
+      }
       const scope = values.scope || "all";
       const result = await orchestrator.compileTabs(
         {
@@ -83,6 +99,7 @@ export async function executeWorkflow(
             goal: values.goal || "create a literal directory copy for downstream review",
             folderPath: values.folderPath,
             format: parseCopyFormat(values.format),
+            includeHidden: parseIncludeHidden(values.includeHidden),
           },
           observe,
           options.signal,
@@ -90,6 +107,9 @@ export async function executeWorkflow(
         events,
       };
     case "page-export":
+      if (snapshot.offlineMode) {
+        throw new Error("Offline mode is active. Page export requires browser attach; use local folder workflows instead.");
+      }
       return {
         result: await orchestrator.exportCurrentPage(
           {
@@ -102,6 +122,9 @@ export async function executeWorkflow(
         events,
       };
     case "instagram-audit":
+      if (snapshot.offlineMode) {
+        throw new Error("Offline mode is active. Legacy browser social audit is disabled.");
+      }
       return {
         result: await orchestrator.socialAudit(
           {
@@ -122,6 +145,12 @@ export async function executeWorkflow(
       return { result: { summary: `Opened ${runsRoot}` }, events };
     }
     case "launch-browser": {
+      if (snapshot.offlineMode) {
+        return {
+          result: { summary: "Offline mode is active. Chrome debug launch skipped; leave offline mode before browser workflows." },
+          events,
+        };
+      }
       const summary = await launchChromeDebugBrowser(
         orchestrator.getProjectRoot(),
         snapshot.config.browser.attachUrl,
@@ -132,6 +161,27 @@ export async function executeWorkflow(
     default:
       return { result: { summary: "No workflow executed." }, events };
   }
+}
+
+function createOfflineBrowserDiagnostics(orchestrator: ContextorOrchestrator): BrowserConnectionDiagnostics {
+  const config = orchestrator.getConfig();
+  return {
+    attachUrl: config.browser.attachUrl,
+    browserMode: config.browser.mode,
+    endpointReachable: false,
+    attached: false,
+    source: "unavailable",
+    launchedFallback: false,
+    totalTargets: 0,
+    usableTargets: 0,
+    matchingTargets: 0,
+    ignoredTargets: 0,
+    selectionLabel: "offline",
+    pages: [],
+    detectedProfiles: [],
+    issues: ["Offline mode is active; browser features are intentionally disabled."],
+    suggestions: ["Use Summarize Folder Context, Export Literal Folder Copy, output review, logs, or config panels."],
+  };
 }
 
 function parseFolderLimit(value: string | undefined): number | undefined {
@@ -151,6 +201,10 @@ function parseCopyFormat(value: string | undefined): "md" | "txt" | "both" {
   }
 
   return "both";
+}
+
+function parseIncludeHidden(value: string | undefined): boolean {
+  return value?.trim().toLowerCase() === "on";
 }
 
 function truncate(value: string, maxLength: number): string {

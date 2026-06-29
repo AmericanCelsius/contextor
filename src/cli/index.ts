@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import path from "node:path";
+import { createInterface } from "node:readline/promises";
 import { fileURLToPath } from "node:url";
 
 import { Command } from "commander";
@@ -7,7 +8,7 @@ import { Command } from "commander";
 import { ContextorOrchestrator } from "../core/orchestrator";
 import { CONTEXTOR_VERSION } from "../core/version";
 import { RunEvent, WorkflowResult } from "../core/types";
-import { clearTerminalScreen, getNpmExecutable, runCommand } from "../utils/system";
+import { clearTerminalScreen, getNpmExecutable, openPathInShell, runCommand } from "../utils/system";
 
 const program = new Command();
 
@@ -62,6 +63,8 @@ program
   .argument("<folderPath>", "Absolute or relative path to the folder")
   .option("--goal <goal>", "Goal string for directory copy context", "create a literal directory copy for downstream review")
   .option("--format <format>", "Requested primary output format: md, txt, or both", "both")
+  .option("--include-hidden", "Include dotfiles and dot-directories such as .gitignore and .claude")
+  .option("--no-open-output-prompt", "Do not ask to open the generated run folder after export")
   .option("--config <path>", "Path to a Contextor config file")
   .action(async (folderPath, options) => {
     const orchestrator = await ContextorOrchestrator.create(process.cwd(), options.config);
@@ -71,10 +74,15 @@ program
         goal: options.goal,
         folderPath,
         format: parseCopyFormat(options.format),
+        includeHidden: Boolean(options.includeHidden),
       },
       progress,
     );
     printResult(result);
+    await promptToOpenRunFolderIfWanted(
+      result,
+      Boolean(options.openOutputPrompt) && orchestrator.getConfig().offlineMode.promptToOpenOutputFolder !== false,
+    );
   });
 
 program
@@ -188,12 +196,31 @@ program
   .command("tui")
   .alias("dashboard")
   .description("Launch the terminal-contained Contextor dashboard")
+  .option("--offline", "Launch in local-only offline mode")
+  .option("--fullscreen", "Best-effort fullscreen request for the current terminal window")
   .option("--config <path>", "Path to a Contextor config file")
   .action(async (options) => {
     const { startTui } = await import("../tui/index");
     await startTui({
       projectRoot: process.cwd(),
       configPath: options.config,
+      offline: Boolean(options.offline),
+      fullscreen: Boolean(options.fullscreen),
+    });
+  });
+
+program
+  .command("offline")
+  .description("Launch the terminal TUI in local-only offline mode")
+  .option("--fullscreen", "Best-effort fullscreen request for the current terminal window")
+  .option("--config <path>", "Path to a Contextor config file")
+  .action(async (options) => {
+    const { startTui } = await import("../tui/index");
+    await startTui({
+      projectRoot: process.cwd(),
+      configPath: options.config,
+      offline: true,
+      fullscreen: Boolean(options.fullscreen),
     });
   });
 
@@ -201,6 +228,8 @@ program
   .command("launch")
   .alias("start")
   .description("Install dependencies, rebuild Contextor, and launch the TUI")
+  .option("--offline", "Launch the rebuilt TUI in local-only offline mode")
+  .option("--fullscreen", "Best-effort fullscreen request for the current terminal window")
   .option("--config <path>", "Path to a Contextor config file")
   .action(async (options) => {
     const projectRoot = inferProjectRoot();
@@ -209,6 +238,12 @@ program
     clearTerminalScreen();
 
     const args = ["dist/cli/index.js", "tui"];
+    if (options.offline) {
+      args.push("--offline");
+    }
+    if (options.fullscreen) {
+      args.push("--fullscreen");
+    }
     if (options.config) {
       args.push("--config", options.config);
     }
@@ -219,6 +254,8 @@ program
 program
   .command("gui")
   .description("Deprecated alias for the terminal TUI")
+  .option("--offline", "Launch in local-only offline mode")
+  .option("--fullscreen", "Best-effort fullscreen request for the current terminal window")
   .option("--config <path>", "Path to a Contextor config file")
   .action(async (options) => {
     console.error("`contextor gui` is deprecated in v0.2.2. Launching the terminal TUI instead.");
@@ -226,6 +263,8 @@ program
     await startTui({
       projectRoot: process.cwd(),
       configPath: options.config,
+      offline: Boolean(options.offline),
+      fullscreen: Boolean(options.fullscreen),
     });
   });
 
@@ -246,6 +285,26 @@ function printResult(result: WorkflowResult): void {
     for (const artifactPath of result.artifactPaths) {
       console.log(`- ${artifactPath}`);
     }
+  }
+}
+
+async function promptToOpenRunFolderIfWanted(result: WorkflowResult, enabled: boolean): Promise<void> {
+  if (!enabled || !process.stdin.isTTY || !process.stdout.isTTY) {
+    return;
+  }
+
+  const reader = createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  try {
+    const answer = (await reader.question("Export complete. Open this run's output folder? [Y/n] ")).trim().toLowerCase();
+    if (!answer || answer === "y" || answer === "yes") {
+      openPathInShell(result.runDir);
+    }
+  } finally {
+    reader.close();
   }
 }
 

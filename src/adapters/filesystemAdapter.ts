@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { Logger } from "../core/logger";
 import { scoreFileCandidate, suppressDuplicateCandidates } from "../core/relevance";
+import { applyRedactions } from "../core/redaction";
 import { ContextorConfig, DirectoryCopyBundle, DirectoryCopyEntry, FileCandidate, FileSource } from "../core/types";
 import { isWithinDirectory, pathExists, resolveUserPath } from "../utils/files";
 import { extractKeyPoints, summarizeText, truncate } from "../utils/text";
@@ -157,6 +158,7 @@ export class FilesystemAdapter {
   async copyDirectory(
     folderPath: string,
     options: {
+      includeHidden?: boolean;
       onProgress?: (progress: { phase: "indexing" | "extracting" | "compiling" | "complete"; current: number; total: number; details?: string }) => Promise<void> | void;
       signal?: AbortSignal;
     } = {},
@@ -174,7 +176,11 @@ export class FilesystemAdapter {
     }
 
     await this.logger.info("Scanning folder for literal directory copy", { folderPath: resolvedPath });
-    const candidates = await this.walkDirectory(resolvedPath, options.signal, { includeAllFiles: true });
+    const rootName = path.basename(resolvedPath);
+    const [candidates, directories] = await Promise.all([
+      this.walkDirectory(resolvedPath, options.signal, { includeAllFiles: true, includeHidden: Boolean(options.includeHidden) }),
+      this.walkDirectoryPaths(resolvedPath, rootName, options.signal, { includeHidden: Boolean(options.includeHidden) }),
+    ]);
     throwIfAborted(options.signal);
 
     await options.onProgress?.({
@@ -188,9 +194,11 @@ export class FilesystemAdapter {
     for (const [index, candidate] of candidates.entries()) {
       throwIfAborted(options.signal);
       const literal = await this.extractLiteralContent(candidate.path, candidate.extension, candidate.size);
+      const pathWithinRoot = path.relative(resolvedPath, candidate.path) || candidate.name;
       entries.push({
         path: candidate.path,
-        relativePath: path.relative(resolvedPath, candidate.path) || candidate.name,
+        relativePath: path.join(rootName, pathWithinRoot),
+        pathWithinRoot,
         name: candidate.name,
         extension: candidate.extension,
         modifiedTime: new Date(candidate.modifiedTimeMs).toISOString(),
@@ -226,6 +234,8 @@ export class FilesystemAdapter {
 
     return {
       rootPath: resolvedPath,
+      rootName,
+      directories,
       entries,
       totalFiles: entries.length,
       includedFiles,
@@ -236,22 +246,24 @@ export class FilesystemAdapter {
   private async walkDirectory(
     rootPath: string,
     signal?: AbortSignal,
-    options: { includeAllFiles?: boolean } = {},
+    options: { includeAllFiles?: boolean; includeHidden?: boolean } = {},
   ): Promise<FileCandidate[]> {
     throwIfAborted(signal);
     const candidates: FileCandidate[] = [];
-    const entries = await fs.readdir(rootPath, { withFileTypes: true });
+    const entries = (await fs.readdir(rootPath, { withFileTypes: true })).sort((left, right) =>
+      left.name.localeCompare(right.name),
+    );
 
     for (const entry of entries) {
       throwIfAborted(signal);
-      if (entry.name.startsWith(".")) {
+      if (!options.includeHidden && entry.name.startsWith(".")) {
         continue;
       }
 
       const fullPath = path.join(rootPath, entry.name);
 
       if (entry.isDirectory()) {
-        candidates.push(...(await this.walkDirectory(fullPath, signal)));
+        candidates.push(...(await this.walkDirectory(fullPath, signal, options)));
         continue;
       }
 
@@ -273,25 +285,72 @@ export class FilesystemAdapter {
     return candidates;
   }
 
+  private async walkDirectoryPaths(
+    rootPath: string,
+    rootName: string,
+    signal?: AbortSignal,
+    options: { includeHidden?: boolean } = {},
+  ): Promise<string[]> {
+    const directories: string[] = [`${rootName}/`];
+    await this.collectDirectoryPaths(rootPath, rootPath, rootName, directories, signal, options);
+    return directories;
+  }
+
+  private async collectDirectoryPaths(
+    currentPath: string,
+    rootPath: string,
+    rootName: string,
+    directories: string[],
+    signal?: AbortSignal,
+    options: { includeHidden?: boolean } = {},
+  ): Promise<void> {
+    throwIfAborted(signal);
+    const entries = (await fs.readdir(currentPath, { withFileTypes: true })).sort((left, right) =>
+      left.name.localeCompare(right.name),
+    );
+
+    for (const entry of entries) {
+      throwIfAborted(signal);
+      if (!options.includeHidden && entry.name.startsWith(".")) {
+        continue;
+      }
+
+      if (!entry.isDirectory()) {
+        continue;
+      }
+
+      const fullPath = path.join(currentPath, entry.name);
+      directories.push(`${path.join(rootName, path.relative(rootPath, fullPath))}/`);
+      await this.collectDirectoryPaths(fullPath, rootPath, rootName, directories, signal, options);
+    }
+  }
+
   private async extractText(filePath: string, extension: string): Promise<string> {
     try {
+      let extracted: string;
       switch (extension) {
         case ".txt":
         case ".md":
         case ".csv":
-          return truncate(await fs.readFile(filePath, "utf8"), 18_000);
+          extracted = await fs.readFile(filePath, "utf8");
+          break;
         case ".json": {
           const raw = await fs.readFile(filePath, "utf8");
           const parsed = JSON.parse(raw) as unknown;
-          return truncate(JSON.stringify(parsed, null, 2), 18_000);
+          extracted = JSON.stringify(parsed, null, 2);
+          break;
         }
         case ".pdf":
-          return truncate(await this.extractPdfText(filePath), 18_000);
+          extracted = await this.extractPdfText(filePath);
+          break;
         case ".docx":
-          return truncate(await this.extractDocxText(filePath), 18_000);
+          extracted = await this.extractDocxText(filePath);
+          break;
         default:
           return "Unsupported file type.";
       }
+
+      return truncate(this.redactText(extracted), 18_000);
     } catch (error) {
       await this.logger.warn("Failed to extract text from file", {
         filePath,
@@ -316,7 +375,7 @@ export class FilesystemAdapter {
               : extension === ".docx"
                 ? await this.extractDocxText(filePath)
                 : await fs.readFile(filePath, "utf8");
-        const trimmed = limitLiteralContent(extracted);
+        const trimmed = limitLiteralContent(this.redactText(extracted));
         return {
           content: trimmed.content,
           contentKind: "text",
@@ -326,22 +385,22 @@ export class FilesystemAdapter {
 
       if (KNOWN_BINARY_EXTENSIONS.has(extension)) {
         return {
-          content: `Skipped binary or non-text file: ${filePath}`,
+          content: describeNonTextFile(filePath, extension, size),
           contentKind: "skipped",
-          note: "Known binary or non-text extension.",
+          note: "Known binary or non-text extension; represented as file metadata.",
         };
       }
 
       const buffer = await fs.readFile(filePath);
       if (isProbablyBinary(buffer.subarray(0, Math.min(buffer.length, BINARY_SNIFF_BYTES)))) {
         return {
-          content: `Skipped binary-looking file: ${filePath}`,
+          content: describeNonTextFile(filePath, extension, size),
           contentKind: "skipped",
-          note: "Binary content detected during sniffing.",
+          note: "Binary content detected during sniffing; represented as file metadata.",
         };
       }
 
-      const trimmed = limitLiteralContent(buffer.toString("utf8"));
+      const trimmed = limitLiteralContent(this.redactText(buffer.toString("utf8")));
       return {
         content: trimmed.content,
         contentKind: "text",
@@ -367,6 +426,10 @@ export class FilesystemAdapter {
     } catch {
       return raw;
     }
+  }
+
+  private redactText(value: string): string {
+    return applyRedactions(value, this.config.redaction);
   }
 
   private async extractPdfText(filePath: string): Promise<string> {
@@ -432,6 +495,58 @@ function isProbablyBinary(buffer: Buffer): boolean {
   }
 
   return suspiciousBytes / buffer.length > 0.25;
+}
+
+function describeNonTextFile(filePath: string, extension: string, size: number): string {
+  const name = path.basename(filePath);
+  const normalizedExtension = extension || path.extname(name).toLowerCase();
+  const label = getNonTextFileTypeLabel(normalizedExtension);
+  return `${label} named "${name}" (${name}). This file cannot be represented as literal text content, so the directory copy records its path, type, and ${size} byte size.`;
+}
+
+function getNonTextFileTypeLabel(extension: string): string {
+  const imageExtensions = new Set([".ai", ".bmp", ".gif", ".heic", ".heif", ".ico", ".jpeg", ".jpg", ".png", ".psd", ".tif", ".tiff", ".webp"]);
+  const audioExtensions = new Set([".mp3", ".wav"]);
+  const videoExtensions = new Set([".mp4", ".mov"]);
+  const archiveExtensions = new Set([".7z", ".gz", ".tar", ".zip"]);
+  const fontExtensions = new Set([".otf", ".ttf", ".woff", ".woff2"]);
+  const spreadsheetExtensions = new Set([".xls", ".xlsx"]);
+  const presentationExtensions = new Set([".ppt", ".pptx"]);
+  const documentExtensions = new Set([".doc", ".pages"]);
+
+  if (imageExtensions.has(extension)) {
+    return `${extension.slice(1).toUpperCase()} image file`;
+  }
+
+  if (audioExtensions.has(extension)) {
+    return `${extension.slice(1).toUpperCase()} audio file`;
+  }
+
+  if (videoExtensions.has(extension)) {
+    return `${extension.slice(1).toUpperCase()} video file`;
+  }
+
+  if (archiveExtensions.has(extension)) {
+    return `${extension.slice(1).toUpperCase()} archive file`;
+  }
+
+  if (fontExtensions.has(extension)) {
+    return `${extension.slice(1).toUpperCase()} font file`;
+  }
+
+  if (spreadsheetExtensions.has(extension)) {
+    return `${extension.slice(1).toUpperCase()} spreadsheet file`;
+  }
+
+  if (presentationExtensions.has(extension)) {
+    return `${extension.slice(1).toUpperCase()} presentation file`;
+  }
+
+  if (documentExtensions.has(extension)) {
+    return `${extension.slice(1).toUpperCase()} document file`;
+  }
+
+  return extension ? `${extension.slice(1).toUpperCase()} file` : "Non-text file";
 }
 
 async function withMutedConsoleWarnings<T>(task: () => Promise<T>, patterns: RegExp[]): Promise<T> {

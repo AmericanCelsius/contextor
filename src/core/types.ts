@@ -134,6 +134,7 @@ export interface CopyFolderOptions {
   goal: string;
   folderPath: string;
   format: "md" | "txt" | "both";
+  includeHidden?: boolean;
 }
 
 export interface ExportCurrentPageOptions {
@@ -179,6 +180,13 @@ export interface RedactionConfig {
   maxExcerptLength: number;
 }
 
+export interface OfflineModeConfig {
+  enabledByDefault: boolean;
+  disableBrowserPanels: boolean;
+  promptToOpenOutputFolder: boolean;
+  autoFullscreenTerminal: boolean;
+}
+
 export interface BrowserConfig {
   attachUrl: string;
   mode: "attach-or-launch" | "attach-only" | "launch-only";
@@ -206,6 +214,7 @@ export interface ContextorConfig {
     enabled: string[];
   };
   redaction: RedactionConfig;
+  offlineMode: OfflineModeConfig;
   socialAudit: SocialAuditConfig;
   safety: {
     readOnlyBrowserByDefault: boolean;
@@ -256,6 +265,7 @@ export interface FileCandidate {
 export interface DirectoryCopyEntry {
   path: string;
   relativePath: string;
+  pathWithinRoot: string;
   name: string;
   extension: string;
   modifiedTime: string;
@@ -267,6 +277,8 @@ export interface DirectoryCopyEntry {
 
 export interface DirectoryCopyBundle {
   rootPath: string;
+  rootName: string;
+  directories: string[];
   entries: DirectoryCopyEntry[];
   totalFiles: number;
   includedFiles: number;

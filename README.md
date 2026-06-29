@@ -16,6 +16,7 @@ Contextor is designed to become a serious **browser-first, debuggable, terminal-
 - [Current Product State](#current-product-state)
 - [What Contextor Can Do Right Now](#what-contextor-can-do-right-now)
 - [Terminal UI Overview](#terminal-ui-overview)
+- [Offline Mode](#offline-mode)
 - [TUI Navigation and Keybinds](#tui-navigation-and-keybinds)
 - [CLI Workflows](#cli-workflows)
 - [Output Model](#output-model)
@@ -107,6 +108,8 @@ Contextor has already moved beyond the earlier browser-served dashboard concept.
 
 The main interface is now a **terminal-contained TUI** built for keyboard-first use. The current product has a working command-line interface, structured run outputs, folder and page workflows, browser diagnostics, and a retro-futuristic terminal command-console presentation.
 
+Contextor also has an explicit **offline mode** for local-only work. Offline mode does not require WiFi, API keys, online LLM services, Chrome remote debugging, or browser attach success.
+
 This means Contextor is already useful as:
 
 - a personal research assistant shell
@@ -134,6 +137,7 @@ This means Contextor is already useful as:
 - suppress duplicate content
 - create a literal directory copy as aggregated markdown and text
 - export a faithful textual snapshot of a directory for downstream LLM use
+- redact `.env`-style secrets, tokens, credentials, usernames, emails, and connection strings from local outputs by default
 
 ### Review and browser audit workflows
 - stage future arbitrary operator prompts in the prompt console
@@ -232,6 +236,48 @@ This layout is one of the major strengths of Contextor because it gives the proj
 
 ---
 
+## Offline Mode
+
+Offline mode launches Contextor as a local-only workspace. It is designed for flights, no-WiFi sessions, machines without API keys, and cases where Chrome remote debugging is not available.
+
+Offline mode supports:
+- `Summarize Folder Context`
+- `Export Literal Folder Copy`
+- local file scanning and path autocomplete
+- markdown/text output generation
+- output folder creation
+- run logs and recent-run review
+- config and output inspection
+
+Offline mode disables:
+- browser tab capture
+- page export
+- Chrome attach checks
+- online/API/LLM assumptions
+- legacy browser social-audit flows
+
+Launch offline mode directly:
+
+```bash
+contextor offline
+contextor tui --offline
+contextor start --offline
+contextor launch --offline
+```
+
+The TUI also includes an `Offline Mode` command-grid entry. Use it to toggle local-only operation inside the terminal. Browser panels will report that offline mode is active instead of treating disabled browser checks as an attach failure.
+
+Optional fullscreen startup is best-effort and off by default:
+
+```bash
+contextor start --fullscreen
+contextor start --offline --fullscreen
+```
+
+On macOS this requests fullscreen with AppleScript/System Events. If the terminal or accessibility permissions block it, Contextor simply continues without fullscreen.
+
+---
+
 ## TUI Navigation and Keybinds
 
 The TUI is designed for keyboard-first operation.
@@ -293,8 +339,11 @@ It does **not** execute arbitrary browser-control or multi-step agentic tasks in
 ```bash
 contextor tui
 contextor dashboard
+contextor offline
 contextor launch
 contextor start
+contextor start --offline
+contextor launch --offline
 ```
 
 ### Browser diagnostics
@@ -317,7 +366,10 @@ contextor folder "/absolute/path/to/folder" --goal "summarize this project folde
 ### Literal directory copy
 ```bash
 contextor copy-folder "/absolute/path/to/folder" --goal "create a literal directory copy for downstream review"
+contextor copy-folder "/absolute/path/to/folder" --include-hidden
 ```
+
+Literal directory copy is fully offline-capable. After a successful interactive CLI export, Contextor asks whether to open that run's output folder. Press `Enter`, `y`, or `yes` to open it; pass `--no-open-output-prompt` to skip the prompt.
 
 ### Page export
 ```bash
@@ -345,6 +397,7 @@ One of Contextor’s most important design choices is that every run generates s
 Typical outputs include:
 - `context.md`
 - `context.txt`
+- `{source_folder}_context.md` and `{source_folder}_context.txt` for literal directory-copy runs
 - `logs/run.log`
 - workflow artifacts
 - source manifests
@@ -356,6 +409,42 @@ A typical run path looks like:
 ```text
 output/runs/<timestamp>__<workflow>__<goal-slug>/
 ```
+
+For example, copying a folder named `My Project Folder` writes:
+
+```text
+output/runs/<timestamp>__directory-copy__<goal-slug>/my_project_folder_context.md
+output/runs/<timestamp>__directory-copy__<goal-slug>/my_project_folder_context.txt
+```
+
+Whitespace is converted to underscores, unsafe filename characters are sanitized, and generated run artifacts under `output/runs/` are ignored by git.
+
+### Redaction defaults
+
+Contextor redacts likely secrets before writing local file content into context bundles, literal directory-copy outputs, source manifests, TUI runtime logs, and run logs. This includes `.env`-style keys such as:
+
+- `API_KEY`
+- `TOKEN`
+- `SECRET`
+- `PASSWORD`
+- `USER`
+- `USERNAME`
+- `EMAIL`
+- `PRIVATE_KEY`
+- `CLIENT_SECRET`
+- `DATABASE_URL`
+- `DB_PASSWORD`
+
+Examples:
+
+```text
+OPENAI_API_KEY="********"
+DATABASE_URL="********"
+EMAIL="*******@gmail.com"
+PASSWORD="********"
+```
+
+Hidden dotfiles and dot-directories are skipped by default in literal directory copy. If `--include-hidden` or the TUI `Include Hidden` option is enabled, secret-like values are still redacted before output.
 
 This output-first design matters because it gives Contextor:
 
@@ -423,7 +512,8 @@ The current codebase already depends on a practical set of tools that make the p
 
 ### Runtime dependencies
 - **commander**: CLI command parsing
-- **express**: current local server/runtime support
+- **ink** and **react**: terminal-contained TUI rendering
+- **@inkjs/ui**: optional Ink-compatible UI component path
 - **mammoth**: `.docx` extraction
 - **pdf-parse**: PDF extraction
 - **playwright-core**: browser automation backbone
@@ -670,6 +760,21 @@ contextor start
 contextor launch
 ```
 
+Offline/local-only launch:
+
+```bash
+contextor offline
+contextor start --offline
+contextor launch --offline
+```
+
+Best-effort fullscreen launch:
+
+```bash
+contextor start --fullscreen
+contextor start --offline --fullscreen
+```
+
 ### Typical browser setup
 Launch Chrome with remote debugging:
 
@@ -683,6 +788,7 @@ contextor browser-status
 contextor tabs --all --goal "summarize my current browser context"
 contextor folder "/absolute/path/to/folder" --goal "summarize this project folder"
 contextor copy-folder "/absolute/path/to/folder" --goal "create a literal directory copy for downstream review"
+contextor copy-folder "/absolute/path/to/folder" --include-hidden --goal "create a literal directory copy for downstream review"
 contextor page-export --current --mode linkedin --goal "export this LinkedIn page"
 contextor social-audit --platform instagram --mode non-mutuals --dry-run
 ```

@@ -50,6 +50,32 @@ export function clearTerminalViewport(): void {
   process.stdout.write("\u001B[2J\u001B[3J\u001B[H");
 }
 
+export async function requestTerminalFullscreen(): Promise<void> {
+  if (process.platform !== "darwin") {
+    return;
+  }
+
+  const termProgram = String(process.env.TERM_PROGRAM || "");
+  const activateScript = resolveTerminalActivateScript(termProgram);
+  if (!activateScript) {
+    return;
+  }
+
+  try {
+    await collectCommandOutput("osascript", [
+      "-e",
+      activateScript,
+      "-e",
+      "delay 0.05",
+      "-e",
+      'tell application "System Events" to keystroke "f" using {control down, command down}',
+    ]);
+    await delay(250);
+  } catch {
+    // Best-effort only. TUI rendering should continue if macOS blocks synthetic input.
+  }
+}
+
 export async function installTuiRuntimeSink(outputDirectory: string): Promise<() => void> {
   const sinkDirectory = await resolveTuiRuntimeSinkDirectory(outputDirectory);
   const sinkPath = path.join(sinkDirectory, "tui-runtime.log");
@@ -263,6 +289,24 @@ function resolveTerminalCloseScript(termProgram: string): string | undefined {
   }
 
   return undefined;
+}
+
+function resolveTerminalActivateScript(termProgram: string): string | undefined {
+  if (termProgram === "Apple_Terminal") {
+    return 'tell application "Terminal" to activate';
+  }
+
+  if (termProgram === "iTerm.app") {
+    return 'tell application "iTerm2" to activate';
+  }
+
+  return undefined;
+}
+
+async function delay(milliseconds: number): Promise<void> {
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, milliseconds);
+  });
 }
 
 function isMissingPathError(error: unknown): boolean {

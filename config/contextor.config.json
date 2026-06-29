@@ -25,10 +25,16 @@
   },
   "redaction": {
     "enabled": true,
-    "maskEmails": false,
+    "maskEmails": true,
     "maskTokens": true,
     "maskCookies": true,
     "maxExcerptLength": 2400
+  },
+  "offlineMode": {
+    "enabledByDefault": false,
+    "disableBrowserPanels": true,
+    "promptToOpenOutputFolder": true,
+    "autoFullscreenTerminal": false
   },
   "socialAudit": {
     "maxScrollRounds": 24,

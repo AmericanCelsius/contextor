@@ -4,7 +4,7 @@ import { Box, Text, useApp, useInput } from "ink";
 import { ContextorOrchestrator } from "../core/orchestrator";
 import { CONTEXTOR_VERSION } from "../core/version";
 import { BrowserPageSummary, RunEvent, WorkflowResult } from "../core/types";
-import { clearTerminalViewport, getRecommendedFolderPaths, getRuntimeEnvironmentInfo } from "../utils/system";
+import { clearTerminalViewport, getRecommendedFolderPaths, getRuntimeEnvironmentInfo, openPathInShell } from "../utils/system";
 import { TUI_ACTIONS } from "./actions";
 import { completeFolderPath, executeWorkflow, getFolderPathStatus, loadDashboardSnapshot } from "./controller";
 import { ActionMenu, BootSplash, ConfirmActionPane, ConfirmQuitPane, CornerBadge, FooterBar, FormPane, InfoPane, QuitSplash, WorkspacePane } from "./components";
@@ -25,18 +25,23 @@ const PANEL_ORDER: TuiPanelView[] = ["browser", "runs", "logs", "config"];
 
 export function ContextorTuiApp(props: {
   orchestrator: ContextorOrchestrator;
+  initialOfflineMode?: boolean;
   onConfirmedQuit?: () => void;
 }): React.JSX.Element {
   const { exit } = useApp();
   const terminalWidth = process.stdout.columns ?? 120;
   const terminalRows = process.stdout.rows ?? 40;
-  const compactLayout = terminalWidth < 150 || terminalRows < 42;
+  const stackPanels = terminalWidth < 132 && terminalRows >= 42;
+  const shortTerminal = terminalRows < 40;
+  const compactLayout = stackPanels;
   const reducedWidthLayout = !compactLayout && (terminalWidth < 176 || terminalRows < 50);
-  const panelMinHeight = terminalRows < 34 ? 14 : terminalRows < 44 ? 18 : 24;
-  const menuWidth = compactLayout ? "100%" : reducedWidthLayout ? 30 : 34;
-  const infoWidth = compactLayout ? "100%" : reducedWidthLayout ? 40 : 48;
+  const showInfoPane = terminalRows >= 42;
+  const panelMinHeight = terminalRows < 28 ? 8 : terminalRows < 34 ? 10 : terminalRows < 40 ? 12 : terminalRows < 48 ? 16 : 22;
+  const menuWidth = compactLayout ? "100%" : reducedWidthLayout ? 28 : 34;
+  const infoWidth = compactLayout ? "100%" : reducedWidthLayout ? 36 : 48;
 
   const [snapshot, setSnapshot] = useState<DashboardSnapshot | null>(null);
+  const [offlineMode, setOfflineMode] = useState(Boolean(props.initialOfflineMode));
   const [loadingSnapshot, setLoadingSnapshot] = useState(true);
   const [selectedActionIndex, setSelectedActionIndex] = useState(0);
   const [activePanelView, setActivePanelView] = useState<TuiPanelView>("browser");
@@ -197,7 +202,7 @@ export function ContextorTuiApp(props: {
     }
 
     if (confirmationState) {
-      if (key.return) {
+      if (key.return || input === "y" || input === "Y") {
         if (confirmationState.type === "workflow-submit" && pendingFormSubmission) {
           recordInput(label, `Confirm ${pendingFormSubmission.action.label}`);
           setConfirmationState(null);
@@ -215,6 +220,13 @@ export function ContextorTuiApp(props: {
             message: "Abort requested. Contextor will stop after the current browser or filesystem step completes.",
           }));
           runAbortController?.abort();
+          return;
+        }
+
+        if (confirmationState.type === "open-run-folder" && confirmationState.runDir) {
+          recordInput(label, "Open completed run folder");
+          openPathInShell(confirmationState.runDir);
+          setConfirmationState(null);
           return;
         }
       }
@@ -358,7 +370,7 @@ export function ContextorTuiApp(props: {
   async function refreshDashboard(): Promise<void> {
     setLoadingSnapshot(true);
     try {
-      const nextSnapshot = await loadDashboardSnapshot(props.orchestrator);
+      const nextSnapshot = await loadDashboardSnapshot(props.orchestrator, { offlineMode });
       setSnapshot(nextSnapshot);
     } catch (error) {
       setRunState({
@@ -436,6 +448,25 @@ export function ContextorTuiApp(props: {
           abortable: false,
           abortRequested: false,
         }));
+        if (
+          action.id === "directory-copy" &&
+          props.orchestrator.getConfig().offlineMode.promptToOpenOutputFolder !== false
+        ) {
+          setConfirmationState({
+            type: "open-run-folder",
+            title: "EXPORT COMPLETE",
+            message: "Open this run's output folder?",
+            details: [
+              workflowResult.summary,
+              `Run folder: ${workflowResult.runDir}`,
+              `Markdown: ${workflowResult.contextMarkdownPath}`,
+              `Text: ${workflowResult.contextTextPath}`,
+            ],
+            confirmLabel: "Open output folder",
+            cancelLabel: "Stay in Contextor",
+            runDir: workflowResult.runDir,
+          });
+        }
       } else {
         setRunState({
           state: "idle",
@@ -466,6 +497,40 @@ export function ContextorTuiApp(props: {
   }
 
   async function handleAction(action: TuiAction): Promise<void> {
+    if (action.id === "offline-mode") {
+      const nextOfflineMode = !offlineMode;
+      setOfflineMode(nextOfflineMode);
+      setActivePanelView("browser");
+      setRunState({
+        state: "idle",
+        title: action.label,
+        message: nextOfflineMode
+          ? "Offline mode enabled. Local folder compile, literal directory copy, output review, logs, and config remain available without browser attach or internet."
+          : "Offline mode disabled. Browser workflows and Chrome attach diagnostics are available again.",
+        liveLogs: [],
+        eventCount: 0,
+        actionId: action.id,
+        abortable: false,
+        abortRequested: false,
+      });
+      setLoadingSnapshot(true);
+      try {
+        const nextSnapshot = await loadDashboardSnapshot(props.orchestrator, { offlineMode: nextOfflineMode });
+        setSnapshot(nextSnapshot);
+      } catch (error) {
+        setRunState({
+          state: "error",
+          title: "Offline mode switch failed",
+          message: error instanceof Error ? error.message : String(error),
+          liveLogs: [],
+          eventCount: 0,
+        });
+      } finally {
+        setLoadingSnapshot(false);
+      }
+      return;
+    }
+
     if (action.createFields) {
       setConfirmationState(null);
       setPendingFormSubmission(null);
@@ -849,8 +914,8 @@ export function ContextorTuiApp(props: {
 
   return (
     <Box flexDirection="column" paddingX={1}>
-      <Header snapshot={snapshot} loading={loadingSnapshot} tick={tick} compact={compactLayout} />
-      <Box marginTop={1} flexDirection={compactLayout ? "column" : "row"}>
+      <Header snapshot={snapshot} loading={loadingSnapshot} tick={tick} compact={compactLayout || shortTerminal} short={shortTerminal} />
+      <Box marginTop={shortTerminal ? 0 : 1} flexDirection={compactLayout ? "column" : "row"}>
         <ActionMenu
           actions={TUI_ACTIONS}
           selectedIndex={selectedActionIndex}
@@ -879,28 +944,52 @@ export function ContextorTuiApp(props: {
             <WorkspacePane selectedAction={selectedAction} runState={runState} tick={tick} minHeight={panelMinHeight} />
           )}
         </Box>
-        <Box marginLeft={compactLayout ? 0 : 1} marginTop={compactLayout ? 1 : 0}>
-          <InfoPane view={activePanelView} snapshot={snapshot} tick={tick} width={infoWidth} minHeight={panelMinHeight} />
-        </Box>
+        {showInfoPane ? (
+          <Box marginLeft={compactLayout ? 0 : 1} marginTop={compactLayout ? 1 : 0}>
+            <InfoPane view={activePanelView} snapshot={snapshot} tick={tick} width={infoWidth} minHeight={panelMinHeight} />
+          </Box>
+        ) : null}
       </Box>
       <FooterBar
         panelView={activePanelView}
         formMode={Boolean(activeFormAction)}
         loading={loadingSnapshot}
+        offlineMode={offlineMode}
         runtimeInfo={runtimeInfo}
         lastInput={lastInput}
-        compact={compactLayout}
+        compact={compactLayout || shortTerminal}
+        short={shortTerminal}
       />
     </Box>
   );
 }
 
-function Header(props: { snapshot: DashboardSnapshot | null; loading: boolean; tick: number; compact: boolean }): React.JSX.Element {
+function Header(props: {
+  snapshot: DashboardSnapshot | null;
+  loading: boolean;
+  tick: number;
+  compact: boolean;
+  short: boolean;
+}): React.JSX.Element {
   const browserText = props.snapshot
-    ? props.snapshot.browser.endpointReachable
+    ? props.snapshot.offlineMode
+      ? "offline mode • browser disabled"
+      : props.snapshot.browser.endpointReachable
       ? `browser online • ${props.snapshot.browser.usableTargets} tab(s)`
       : "browser attach offline"
     : "loading browser status";
+  const browserOnline = Boolean(props.snapshot?.browser.endpointReachable && !props.snapshot.offlineMode);
+
+  if (props.short) {
+    return (
+      <Box borderStyle="double" borderColor={TUI_THEME.border} paddingX={1} paddingY={0} justifyContent="space-between">
+        <Text color={TUI_THEME.accent}>Contextor v{CONTEXTOR_VERSION}</Text>
+        <Text color={props.snapshot?.offlineMode ? TUI_THEME.accentSoft : browserOnline ? TUI_THEME.ok : TUI_THEME.warn}>
+          {browserText} {props.loading ? "• refresh active" : ""}
+        </Text>
+      </Box>
+    );
+  }
 
   return (
     <Box borderStyle="double" borderColor={TUI_THEME.border} paddingX={1} paddingY={0} justifyContent="space-between">
@@ -910,10 +999,12 @@ function Header(props: { snapshot: DashboardSnapshot | null; loading: boolean; t
       </Box>
       <Box flexDirection={props.compact ? "column" : "row"} alignItems="flex-end">
         <Box flexDirection="column" alignItems="flex-end" marginRight={props.compact ? 0 : 2}>
-          <Text color={props.snapshot?.browser.endpointReachable ? TUI_THEME.ok : TUI_THEME.warn}>{browserText}</Text>
-          <Text color={TUI_THEME.muted}>{props.loading ? "dashboard refresh active" : "input echo + animation layer active"}</Text>
+          <Text color={props.snapshot?.offlineMode ? TUI_THEME.accentSoft : browserOnline ? TUI_THEME.ok : TUI_THEME.warn}>{browserText}</Text>
+          <Text color={TUI_THEME.muted}>
+            {props.loading ? "dashboard refresh active" : props.snapshot?.offlineMode ? "local-only console active" : "input echo + animation layer active"}
+          </Text>
         </Box>
-        <CornerBadge tick={props.tick} browserOnline={Boolean(props.snapshot?.browser.endpointReachable)} />
+        <CornerBadge tick={props.tick} browserOnline={browserOnline} offlineMode={Boolean(props.snapshot?.offlineMode)} />
       </Box>
     </Box>
   );
@@ -969,8 +1060,9 @@ function buildFormInsights(
       });
     }
 
-  if (action.id === "directory-copy") {
+    if (action.id === "directory-copy") {
       const formatValue = findFieldValue(fields, "format") || "both";
+      const includeHiddenValue = findFieldValue(fields, "includeHidden") || "off";
       insights.push({
         tone: "ok",
         label: "Literal copy mode",
@@ -980,6 +1072,14 @@ function buildFormInsights(
             : formatValue === "txt"
               ? "Text is the requested primary format. Contextor also writes a markdown companion."
               : "Contextor will write both markdown and text root outputs for the directory copy.",
+      });
+      insights.push({
+        tone: includeHiddenValue === "on" ? "warn" : "neutral",
+        label: "Hidden dot entries",
+        details:
+          includeHiddenValue === "on"
+            ? "Dotfiles and dot-directories will be included, including entries such as .gitignore and .claude."
+            : "Dotfiles and dot-directories will be skipped unless you switch this field on.",
       });
     }
   }
@@ -1029,9 +1129,11 @@ function buildFormInsights(
     const rawMatch = findFieldValue(fields, "match");
     const preview = previewBrowserSelection(snapshot.browser.pages, scope, rawMatch);
     insights.push({
-      tone: snapshot.browser.endpointReachable ? "ok" : "error",
+      tone: snapshot.offlineMode ? "warn" : snapshot.browser.endpointReachable ? "ok" : "error",
       label: "Browser attach preview",
-      details: snapshot.browser.endpointReachable
+      details: snapshot.offlineMode
+        ? "Offline mode is active. Browser tab capture is disabled until offline mode is turned off."
+        : snapshot.browser.endpointReachable
         ? `${preview.count} candidate tab(s). ${preview.details}`
         : "Chrome attach endpoint is offline.",
     });
@@ -1040,9 +1142,11 @@ function buildFormInsights(
   if (action.id === "page-export") {
     const firstPage = snapshot.browser.pages[0];
     insights.push({
-      tone: snapshot.browser.endpointReachable ? "ok" : "error",
+      tone: snapshot.offlineMode ? "warn" : snapshot.browser.endpointReachable ? "ok" : "error",
       label: "Current page export preview",
-      details: firstPage
+      details: snapshot.offlineMode
+        ? "Offline mode is active. Page export requires browser attach and is disabled."
+        : firstPage
         ? `${firstPage.title || firstPage.url} :: ${firstPage.url}`
         : "No attached page is visible yet.",
     });
@@ -1226,6 +1330,7 @@ function buildFolderWorkflowConfirmationDetails(
 
   if (action.id === "directory-copy") {
     details.push(`Requested format: ${(values.format || "both").trim() || "both"}`);
+    details.push(`Include hidden: ${(values.includeHidden || "off").trim() || "off"}`);
   }
 
   return details;

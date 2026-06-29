@@ -38,6 +38,12 @@ export const TUI_ACTIONS: TuiAction[] = [
     ],
   },
   {
+    id: "offline-mode",
+    label: "Offline Mode",
+    shortLabel: "offline",
+    description: "Toggle local-only operation. Browser, network, API, and Chrome attach checks stay disabled.",
+  },
+  {
     id: "task-console",
     label: "Prompt Console",
     shortLabel: "prompt",
@@ -140,6 +146,17 @@ export const TUI_ACTIONS: TuiAction[] = [
           { label: "Text priority", value: "txt" },
         ],
         hint: "Contextor still writes both root outputs for compatibility.",
+      },
+      {
+        id: "includeHidden",
+        label: "Include Hidden",
+        type: "select",
+        value: "off",
+        options: [
+          { label: "Off", value: "off" },
+          { label: "On", value: "on" },
+        ],
+        hint: "Include dotfiles and dot-directories such as .gitignore and .claude.",
       },
     ],
   },

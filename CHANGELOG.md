@@ -6,6 +6,14 @@ It is meant to be a fast reference for what changed across the major build itera
 
 ## Current UI Pass
 
+- Added first-class offline mode through `contextor offline`, `contextor tui --offline`, and `contextor start/launch --offline`.
+- Added an Offline Mode command-grid entry so local-only operation is reachable inside the TUI.
+- Disabled browser diagnostics and browser workflows cleanly while offline mode is active.
+- Added default key-aware redaction for `.env`-style secrets, tokens, credentials, usernames, emails, private keys, and connection strings before local outputs are written.
+- Changed literal directory-copy output names to `{source_folder}_context.md` and `{source_folder}_context.txt`.
+- Added interactive post-copy confirmation to open the exact generated run folder.
+- Added explicit generated-run ignore rules for `output/runs/**`.
+- Added best-effort `--fullscreen` launch support without making fullscreen automatic.
 - Renamed the two folder-oriented TUI actions so they are visually and semantically easier to distinguish.
 - Tightened dashboard resizing so the terminal layout collapses sooner on mid-sized screens and short terminals.
 - Refreshed the startup animation and added a small retro Contextor status badge in the live dashboard header.

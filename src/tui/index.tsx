@@ -2,12 +2,14 @@ import React from "react";
 import { render } from "ink";
 
 import { ContextorOrchestrator } from "../core/orchestrator";
-import { clearTerminalViewport, closeActiveTerminalWindow, installTuiRuntimeSink } from "../utils/system";
+import { clearTerminalViewport, closeActiveTerminalWindow, installTuiRuntimeSink, requestTerminalFullscreen } from "../utils/system";
 import { ContextorTuiApp } from "./app";
 
 interface StartTuiOptions {
   projectRoot: string;
   configPath?: string;
+  offline?: boolean;
+  fullscreen?: boolean;
 }
 
 export async function startTui(options: StartTuiOptions): Promise<void> {
@@ -16,12 +18,18 @@ export async function startTui(options: StartTuiOptions): Promise<void> {
   }
 
   const orchestrator = await ContextorOrchestrator.create(options.projectRoot, options.configPath);
+  const config = orchestrator.getConfig();
+  if (options.fullscreen || config.offlineMode.autoFullscreenTerminal) {
+    await requestTerminalFullscreen();
+  }
+
   const restoreRuntimeSink = await installTuiRuntimeSink(orchestrator.getConfig().outputDirectory);
   const restoreTerminal = enterAlternateScreen();
   let closeWindowAfterExit = false;
   const instance = render(
     <ContextorTuiApp
       orchestrator={orchestrator}
+      initialOfflineMode={options.offline || config.offlineMode.enabledByDefault}
       onConfirmedQuit={() => {
         closeWindowAfterExit = true;
       }}

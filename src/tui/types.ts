@@ -11,6 +11,7 @@ export type TuiPanelView = "browser" | "runs" | "logs" | "config";
 
 export type TuiActionId =
   | "tabs"
+  | "offline-mode"
   | "task-console"
   | "folder"
   | "directory-copy"
@@ -59,6 +60,7 @@ export interface DashboardSnapshot {
   recentRuns: RecentRunSummary[];
   latestLog: LatestLogSummary;
   config: ContextorConfig;
+  offlineMode: boolean;
 }
 
 export interface TuiRunState {
@@ -99,10 +101,11 @@ export interface TuiWorkflowExecutionResult {
 }
 
 export interface TuiConfirmationState {
-  type: "workflow-submit" | "abort-run";
+  type: "workflow-submit" | "abort-run" | "open-run-folder";
   title: string;
   message: string;
   details: string[];
   confirmLabel: string;
   cancelLabel: string;
+  runDir?: string;
 }

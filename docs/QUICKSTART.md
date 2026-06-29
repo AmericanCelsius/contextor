@@ -36,7 +36,18 @@ One-line bootstrap:
 ```bash
 contextor launch
 contextor start
+contextor start --offline
+contextor launch --offline
 ```
+
+Local-only offline mode:
+
+```bash
+contextor offline
+contextor tui --offline
+```
+
+Offline mode does not require WiFi, API keys, Chrome remote debugging, browser attach, or online LLM services. Use it for `Summarize Folder Context`, `Export Literal Folder Copy`, output review, logs, and config inspection.
 
 The TUI now includes a `Prompt Console` action as a future-facing panel scaffold. It does not execute arbitrary agentic browser-control tasks in `v0.2.2`.
 
@@ -71,13 +82,16 @@ Run a literal directory copy:
 
 ```bash
 contextor copy-folder "/absolute/path/to/folder" --goal "create a literal directory copy for downstream review"
+contextor copy-folder "/absolute/path/to/folder" --include-hidden --goal "create a literal directory copy for downstream review"
 ```
 
 Literal directory copy notes:
 
 - this is separate from `Summarize Folder Context` in the TUI
 - it reuses the same path autocomplete and confirmation flow as the summarizer
-- it writes aggregated file bodies to root `context.md` and `context.txt`
+- it writes aggregated file bodies to `{source_folder}_context.md` and `{source_folder}_context.txt`
+- it redacts `.env`-style secrets, tokens, usernames, emails, passwords, private keys, and database URLs by default
+- interactive CLI exports ask whether to open the generated run folder; press `Enter`, `y`, or `yes` to open it
 - while the workflow is running, press `x` to open the abort prompt
 
 Tabs workflow notes:
@@ -96,6 +110,8 @@ contextor page-export --current --mode linkedin --goal "export this LinkedIn pag
 ```text
 output/runs/<timestamp>__<workflow>__<goal-slug>/
 ```
+
+Generated run artifacts under `output/runs/` are ignored by git.
 
 ## Current Primary GUI
 

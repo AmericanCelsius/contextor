@@ -134,9 +134,11 @@ export async function listRecentRuns(outputRoot: string, limit = 10): Promise<Re
         listFilesSafe(manifestsDir),
         listFilesSafe(logsDir),
       ]);
+      const rootFileNames = await listFilesSafe(runDir);
       const runManifestPath = path.join(manifestsDir, "run.json");
       const runManifest = (await pathExists(runManifestPath)) ? await readJsonFile<RunManifest>(runManifestPath) : undefined;
       const createdAt = runManifest?.createdAt || parseRunDirectoryTimestamp(directoryName) || directoryName;
+      const contextMarkdownName = findContextLikeFile(rootFileNames, ".md");
 
       return {
         runDir,
@@ -144,7 +146,7 @@ export async function listRecentRuns(outputRoot: string, limit = 10): Promise<Re
         name: runManifest?.name || directoryName,
         workflow: runManifest?.workflow,
         goal: runManifest?.goal,
-        contextMarkdownPath: (await pathExists(path.join(runDir, "context.md"))) ? path.join(runDir, "context.md") : undefined,
+        contextMarkdownPath: contextMarkdownName ? path.join(runDir, contextMarkdownName) : undefined,
         logPath: logNames[0] ? path.join(logsDir, logNames[0]) : undefined,
         artifacts: artifactNames.map((name) => path.join(artifactsDir, name)),
         manifests: manifestNames.map((name) => path.join(manifestsDir, name)),
@@ -153,6 +155,15 @@ export async function listRecentRuns(outputRoot: string, limit = 10): Promise<Re
   );
 
   return summaries;
+}
+
+function findContextLikeFile(fileNames: string[], extension: ".md" | ".txt"): string | undefined {
+  const canonical = `context${extension}`;
+  if (fileNames.includes(canonical)) {
+    return canonical;
+  }
+
+  return fileNames.find((fileName) => fileName.endsWith(`_context${extension}`));
 }
 
 async function listFilesSafe(directoryPath: string): Promise<string[]> {

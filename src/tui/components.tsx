@@ -44,27 +44,44 @@ const BOOT_LOGO_MINI = ["  CONTEXTOR  ", "  terminal context console  "];
 
 export function BootSplash({ tick }: { tick: number }): React.JSX.Element {
   const terminalWidth = process.stdout.columns ?? 120;
+  const terminalRows = process.stdout.rows ?? 40;
   const beacon = SCAN_FRAMES[tick % SCAN_FRAMES.length]!;
   const sparkle = tick % 2 === 0 ? "<>   <>   <>" : "><   ><   ><";
-  const art = terminalWidth < 72 ? BOOT_LOGO_MINI : terminalWidth < 96 ? BOOT_LOGO_COMPACT : BOOT_LOGO_WIDE;
+  const art =
+    terminalRows < 18 || terminalWidth < 72
+      ? BOOT_LOGO_MINI
+      : terminalRows < 26 || terminalWidth < 96
+        ? BOOT_LOGO_COMPACT
+        : BOOT_LOGO_WIDE;
   const splashWidth = Math.min(
     Math.max(40, art[0]?.length ? art[0].length + 8 : 40),
     Math.max(40, terminalWidth - 6),
   );
+  const splashHeight = terminalRows < 18 ? 8 : terminalRows < 26 ? 11 : 16;
+  const showSparkle = terminalRows >= 18;
+  const showNarrative = terminalRows >= 20;
 
   return (
     <Box flexDirection="column" alignItems="center" justifyContent="center" height="100%">
-      <Panel title={`CONTEXTOR v${CONTEXTOR_VERSION}`} active width={splashWidth} minHeight={16}>
+      <Panel title={`CONTEXTOR v${CONTEXTOR_VERSION}`} active width={splashWidth} minHeight={splashHeight}>
         <Box flexDirection="column" alignItems="center">
-          <Text color={TUI_THEME.muted}>{sparkle}</Text>
-          <Newline />
+          {showSparkle ? (
+            <>
+              <Text color={TUI_THEME.muted}>{sparkle}</Text>
+              <Newline />
+            </>
+          ) : null}
           {art.map((line, index) => (
             <Text key={`${index}-${line}`} color={index % 2 === 0 ? TUI_THEME.accentSoft : TUI_THEME.accent}>
               {line}
             </Text>
           ))}
-          <Newline />
-          <Text color={TUI_THEME.text}>Retro operator shell initializing browser sensors, path scanners, logs, and mission panels.</Text>
+          {showNarrative ? (
+            <>
+              <Newline />
+              <Text color={TUI_THEME.text}>Retro operator shell initializing browser sensors, path scanners, logs, and mission panels.</Text>
+            </>
+          ) : null}
           <Text color={TUI_THEME.ok} inverse>
             {beacon} Press Enter, Esc, or Space to skip boot.
           </Text>
@@ -89,9 +106,10 @@ export function QuitSplash({ tick }: { tick: number }): React.JSX.Element {
 
 export function ConfirmQuitPane({ tick }: { tick: number }): React.JSX.Element {
   const frame = SCAN_FRAMES[tick % SCAN_FRAMES.length]!;
+  const terminalRows = process.stdout.rows ?? 40;
   return (
     <Box flexDirection="column" alignItems="center" justifyContent="center" height="100%">
-      <Panel title="QUIT CONFIRMATION" active width={72} minHeight={10}>
+      <Panel title="QUIT CONFIRMATION" active width={72} minHeight={terminalRows < 20 ? 7 : 10}>
         <Text color={TUI_THEME.warn}>{frame} Quit the current Contextor session?</Text>
         <Newline />
         <Text color={TUI_THEME.text}>Press Enter or q to confirm.</Text>
@@ -103,12 +121,13 @@ export function ConfirmQuitPane({ tick }: { tick: number }): React.JSX.Element {
 
 export function ConfirmActionPane(props: { tick: number; confirmation: TuiConfirmationState }): React.JSX.Element {
   const frame = SCAN_FRAMES[props.tick % SCAN_FRAMES.length]!;
+  const terminalRows = process.stdout.rows ?? 40;
   return (
     <Box flexDirection="column" alignItems="center" justifyContent="center" height="100%">
-      <Panel title={props.confirmation.title} active width={92} minHeight={14}>
+      <Panel title={props.confirmation.title} active width={92} minHeight={terminalRows < 24 ? 10 : 14}>
         <Text color={TUI_THEME.warn}>{frame} {props.confirmation.message}</Text>
         <Newline />
-        {props.confirmation.details.map((detail, index) => (
+        {props.confirmation.details.slice(0, terminalRows < 24 ? 2 : props.confirmation.details.length).map((detail, index) => (
           <Text key={`${index}-${detail}`} color={TUI_THEME.text}>
             {truncate(detail, 86)}
           </Text>
@@ -166,11 +185,22 @@ export function ActionMenu(props: {
   const detailWidth = terminalWidth < 120 ? 44 : 58;
   const compactList = terminalRows < 42;
   const pulseOn = Math.floor((props.tick ?? 0) / 4) % 2 === 0;
+  const visibleActionCount = terminalRows < 30 ? 5 : terminalRows < 36 ? 6 : terminalRows < 42 ? 7 : props.actions.length;
+  const windowStart =
+    visibleActionCount >= props.actions.length
+      ? 0
+      : Math.min(
+          Math.max(0, props.selectedIndex - Math.floor(visibleActionCount / 2)),
+          props.actions.length - visibleActionCount,
+        );
+  const visibleActions = props.actions.slice(windowStart, windowStart + visibleActionCount);
+  const showInputEcho = terminalRows >= 36;
 
   return (
     <Panel title="COMMAND GRID" active width={props.width ?? 34} minHeight={props.minHeight ?? 24}>
-      {props.actions.map((action, index) => {
-        const selected = index === props.selectedIndex;
+      {visibleActions.map((action, index) => {
+        const actualIndex = windowStart + index;
+        const selected = actualIndex === props.selectedIndex;
         const activeSelected = selected && props.active;
         const titleColor = activeSelected
           ? pulseOn
@@ -182,7 +212,7 @@ export function ActionMenu(props: {
         return (
           <Box key={action.id} marginBottom={1} flexDirection="column">
             <Text color={titleColor} inverse={activeSelected ? pulseOn : selected} bold={selected}>
-              {selected ? ">" : " "} {index + 1}. {action.label}
+              {selected ? ">" : " "} {actualIndex + 1}. {action.label}
             </Text>
             {!compactList || selected ? (
               <Text color={TUI_THEME.muted}>   {truncate(action.description, detailWidth)}</Text>
@@ -190,15 +220,19 @@ export function ActionMenu(props: {
           </Box>
         );
       })}
-      <Newline />
-      <Text color={TUI_THEME.title}>Input Echo</Text>
-      {props.lastInput ? (
-        <Text color={TUI_THEME.muted}>
-          {props.lastInput.label} :: {props.lastInput.action}
-        </Text>
-      ) : (
-        <Text color={TUI_THEME.muted}>No command key captured yet.</Text>
-      )}
+      {showInputEcho ? (
+        <>
+          <Newline />
+          <Text color={TUI_THEME.title}>Input Echo</Text>
+          {props.lastInput ? (
+            <Text color={TUI_THEME.muted}>
+              {props.lastInput.label} :: {props.lastInput.action}
+            </Text>
+          ) : (
+            <Text color={TUI_THEME.muted}>No command key captured yet.</Text>
+          )}
+        </>
+      ) : null}
     </Panel>
   );
 }
@@ -501,9 +535,11 @@ export function FooterBar(props: {
   panelView: TuiPanelView;
   formMode: boolean;
   loading: boolean;
+  offlineMode?: boolean;
   runtimeInfo: RuntimeEnvironmentInfo;
   lastInput?: TuiInputTrace | null;
   compact?: boolean;
+  short?: boolean;
 }): React.JSX.Element {
   const shortcutLine = props.compact
     ? "↑↓ move • Enter run • Tab switch • Esc back • x abort • o output • q quit"
@@ -512,10 +548,12 @@ export function FooterBar(props: {
   return (
     <Box borderStyle="single" borderColor={TUI_THEME.border} paddingX={1} paddingY={0} marginTop={1} flexDirection="column">
       <Text color={TUI_THEME.muted}>{shortcutLine}</Text>
-      <Text color={TUI_THEME.accentSoft}>
-        panel={props.panelView} {props.formMode ? "| form=active" : "| form=idle"} {props.loading ? "| refresh=busy" : ""}
-        {props.lastInput ? ` | last=${props.lastInput.label} @ ${props.lastInput.at}` : ""}
-      </Text>
+      {!props.short ? (
+        <Text color={TUI_THEME.accentSoft}>
+          panel={props.panelView} {props.formMode ? "| form=active" : "| form=idle"} {props.offlineMode ? "| offline=on" : "| offline=off"} {props.loading ? "| refresh=busy" : ""}
+          {props.lastInput ? ` | last=${props.lastInput.label} @ ${props.lastInput.at}` : ""}
+        </Text>
+      ) : null}
       <Text>
         <Text color={TUI_THEME.muted}>local=</Text>
         <Text color={TUI_THEME.accentSoft}>{props.runtimeInfo.localTimestamp}</Text>
@@ -532,7 +570,7 @@ export function FooterBar(props: {
   );
 }
 
-export function CornerBadge(props: { tick: number; browserOnline: boolean }): React.JSX.Element {
+export function CornerBadge(props: { tick: number; browserOnline: boolean; offlineMode?: boolean }): React.JSX.Element {
   const frame = CORNER_BADGE_FRAMES[props.tick % CORNER_BADGE_FRAMES.length]!;
   return (
     <Box flexDirection="column" alignItems="flex-end">
@@ -541,8 +579,8 @@ export function CornerBadge(props: { tick: number; browserOnline: boolean }): Re
           {line}
         </Text>
       ))}
-      <Text color={props.browserOnline ? TUI_THEME.ok : TUI_THEME.warn}>
-        {SCAN_FRAMES[props.tick % SCAN_FRAMES.length]} {props.browserOnline ? "sensor link up" : "sensor link idle"}
+      <Text color={props.offlineMode ? TUI_THEME.accentSoft : props.browserOnline ? TUI_THEME.ok : TUI_THEME.warn}>
+        {SCAN_FRAMES[props.tick % SCAN_FRAMES.length]} {props.offlineMode ? "offline local core" : props.browserOnline ? "sensor link up" : "sensor link idle"}
       </Text>
     </Box>
   );
@@ -558,6 +596,14 @@ function BrowserStatus(props: { snapshot: DashboardSnapshot; tick: number }): Re
 
   return (
     <Box flexDirection="column">
+      {props.snapshot.offlineMode ? (
+        <>
+          <Text color={TUI_THEME.accentSoft} inverse>OFFLINE MODE ACTIVE</Text>
+          <Text color={TUI_THEME.text}>Browser, network, API, and Chrome attach checks are disabled.</Text>
+          <Text color={TUI_THEME.muted}>Local folder compile, literal directory copy, logs, output review, and config remain available.</Text>
+          <Newline />
+        </>
+      ) : null}
       <Text color={browser.endpointReachable ? TUI_THEME.ok : TUI_THEME.error}>
         {signal} {browser.endpointReachable ? "Chrome attach endpoint reachable" : "Chrome attach endpoint unavailable"}
       </Text>
@@ -687,6 +733,12 @@ function ConfigSummary({ snapshot }: { snapshot: DashboardSnapshot }): React.JSX
       <Text color={TUI_THEME.muted}>readOnlyBrowserByDefault={String(config.safety.readOnlyBrowserByDefault)}</Text>
       <Text color={TUI_THEME.muted}>allowAccountActions={String(config.safety.allowAccountActions)}</Text>
       <Text color={TUI_THEME.muted}>dryRunDefault={String(config.socialAudit.dryRunDefault)}</Text>
+      <Newline />
+      <Text color={TUI_THEME.text}>Offline / redaction</Text>
+      <Text color={TUI_THEME.muted}>offlineEnabledByDefault={String(config.offlineMode.enabledByDefault)}</Text>
+      <Text color={TUI_THEME.muted}>promptToOpenOutputFolder={String(config.offlineMode.promptToOpenOutputFolder)}</Text>
+      <Text color={TUI_THEME.muted}>redactionEnabled={String(config.redaction.enabled)}</Text>
+      <Text color={TUI_THEME.muted}>maskEmails={String(config.redaction.maskEmails)}</Text>
     </Box>
   );
 }

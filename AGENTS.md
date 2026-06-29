@@ -27,8 +27,9 @@ Primary surfaces:
 - `page-export`: export current page to markdown, text, PDF
 - `social-audit`: legacy read-only Instagram audit fallback kept outside the main TUI
 - `browser-status`: inspect CDP/browser attach health
+- `offline`: launch the main terminal dashboard in local-only offline mode
 - `tui`: launch the main terminal dashboard
-- `launch` / `start`: install, build, then launch the TUI from the project root
+- `launch` / `start`: install, build, then launch the TUI from the project root; supports `--offline` and best-effort `--fullscreen`
 
 ## Important Files
 
@@ -74,6 +75,10 @@ npm run smoke:folder
 - keep the literal directory-copy workflow separate from the summarizer, while reusing the same folder-path autocomplete UX
 - keep the TUI browser-launch helper available for separate Chrome debug profiles
 - keep the main TUI moving away from Instagram-specific panels and toward a broader prompt-console surface without deleting fallback audit logic
+- preserve offline mode as a first-class local-only mode that does not require WiFi, API keys, online LLMs, Chrome remote debugging, or browser attach
+- keep the Offline Mode command visible in the TUI command grid
+- keep directory-copy success prompts for opening the exact generated run folder
+- keep literal directory-copy output filenames source-folder-based, e.g. `my_project_context.md` and `my_project_context.txt`
 
 ## Safety Notes
 
@@ -81,6 +86,7 @@ npm run smoke:folder
 - keep the preserved Instagram audit fallback review-only unless explicitly expanded in a later milestone
 - preserve logging and output manifests
 - respect `allowedDirectories`
+- redact `.env`-style secrets, credentials, tokens, emails, usernames, private keys, and connection strings by default before writing outputs, manifests, logs, or TUI previews
 
 ## Output Contract
 
@@ -92,8 +98,10 @@ output/runs/<timestamp>__<workflow>__<goal-slug>/
 
 With:
 
-- `context.md`
-- `context.txt`
+- `context.md` / `context.txt` for standard compile workflows
+- `{source_folder}_context.md` / `{source_folder}_context.txt` for literal directory-copy workflows
 - `logs/run.log`
 - `artifacts/`
 - `manifests/`
+
+Generated run artifacts under `output/runs/` must stay ignored by git.

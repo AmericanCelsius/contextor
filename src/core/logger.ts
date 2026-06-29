@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import { RunDirectories, RunLogEntry } from "./types";
+import { applyDefaultSecretRedactions } from "./redaction";
 
 export interface Logger {
   info(message: string, data?: unknown): Promise<void>;
@@ -39,7 +40,9 @@ export class RunLogger {
 
   private async write(level: string, message: string, data?: unknown): Promise<void> {
     const timestamp = new Date().toISOString();
-    const line = `[${timestamp}] [${level}] ${message}${data === undefined ? "" : ` ${JSON.stringify(data)}`}`;
+    const line = applyDefaultSecretRedactions(
+      `[${timestamp}] [${level}] ${message}${data === undefined ? "" : ` ${JSON.stringify(data)}`}`,
+    );
     const entry: RunLogEntry = {
       timestamp,
       level: level as RunLogEntry["level"],
