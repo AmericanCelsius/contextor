@@ -26,19 +26,16 @@ const CORNER_BADGE_FRAMES = [
   [" .--------------------. ", " | CONTEXTOR // LIVE* | ", " '--------------------' "],
 ];
 const BOOT_LOGO_WIDE = [
-  "   _________  _   _ _______ _______ _______ _     _ _______  ______ ",
-  "  / ___/ __ \\| \\ | |_   _|  ____|__   __| |   | |/ /__   __|/ __ \\",
-  " / /__/ /_/ /|  \\| | | | | |__     | |  | |   | ' /   | |  | |  | |",
-  " \\___/\\____/ | . ` | | | |  __|    | |  | |   |  <    | |  | |  | |",
-  " ___/ /      | |\\  |_| |_| |____   | |  | |___| . \\   | |  | |__| |",
-  "/____/       |_| \\_|_____|______|  |_|  |_____|_|\\_\\  |_|   \\____/ ",
+  "  CCCCC   OOO   N   N  TTTTT  EEEEE  X   X  TTTTT   OOO   RRRR  ",
+  " C       O   O  NN  N    T    E       X X     T    O   O  R   R ",
+  " C       O   O  N N N    T    EEEE     X      T    O   O  RRRR  ",
+  " C       O   O  N  NN    T    E       X X     T    O   O  R  R  ",
+  "  CCCCC   OOO   N   N    T    EEEEE  X   X    T     OOO   R   R ",
 ];
 const BOOT_LOGO_COMPACT = [
-  "  ____ ___  _   _ _____ _____ ____  _____ ___  ____  ",
-  " / ___/ _ \\| \\ | |_   _| ____|  _ \\|_   _/ _ \\|  _ \\ ",
-  "| |  | | | |  \\| | | | |  _| | |_) | | || | | | |_) |",
-  "| |__| |_| | |\\  | | | | |___|  _ <  | || |_| |  _ < ",
-  " \\____\\___/|_| \\_| |_| |_____|_| \\_\\ |_| \\___/|_| \\_\\",
+  "  CONTEXTOR",
+  "  LOCAL CONTEXT CONSOLE",
+  "  FILES  RUNS  LOGS",
 ];
 const BOOT_LOGO_MINI = ["  CONTEXTOR  ", "  terminal context console  "];
 
@@ -60,9 +57,10 @@ export function BootSplash({ tick }: { tick: number }): React.JSX.Element {
   const splashHeight = terminalRows < 18 ? 8 : terminalRows < 26 ? 11 : 16;
   const showSparkle = terminalRows >= 18;
   const showNarrative = terminalRows >= 20;
+  const containerHeight = Math.max(splashHeight + 4, terminalRows - 1);
 
   return (
-    <Box flexDirection="column" alignItems="center" justifyContent="center" height="100%">
+    <Box flexDirection="column" alignItems="center" justifyContent="center" height={containerHeight}>
       <Panel title={`CONTEXTOR v${CONTEXTOR_VERSION}`} active width={splashWidth} minHeight={splashHeight}>
         <Box flexDirection="column" alignItems="center">
           {showSparkle ? (
@@ -79,7 +77,8 @@ export function BootSplash({ tick }: { tick: number }): React.JSX.Element {
           {showNarrative ? (
             <>
               <Newline />
-              <Text color={TUI_THEME.text}>Retro operator shell initializing browser sensors, path scanners, logs, and mission panels.</Text>
+              <Text color={TUI_THEME.text}>Booting local context core: paths, logs, redaction, output runs.</Text>
+              <Text color={TUI_THEME.muted}>Browser sensors stay optional; offline workflows remain available.</Text>
             </>
           ) : null}
           <Text color={TUI_THEME.ok} inverse>
@@ -510,6 +509,7 @@ export function InfoPane(props: {
   tick: number;
   width?: number | string;
   minHeight?: number;
+  selectedRecentRunIndex?: number;
 }): React.JSX.Element {
   const { snapshot } = props;
 
@@ -524,7 +524,7 @@ export function InfoPane(props: {
   return (
     <Panel title={`INTEL PANEL :: ${props.view.toUpperCase()}`} width={props.width ?? 48} minHeight={props.minHeight ?? 24} active>
       {props.view === "browser" ? <BrowserStatus snapshot={snapshot} tick={props.tick} /> : null}
-      {props.view === "runs" ? <RecentRuns snapshot={snapshot} /> : null}
+      {props.view === "runs" ? <RecentRuns snapshot={snapshot} selectedIndex={props.selectedRecentRunIndex ?? 0} tick={props.tick} /> : null}
       {props.view === "logs" ? <LatestLogs snapshot={snapshot} /> : null}
       {props.view === "config" ? <ConfigSummary snapshot={snapshot} /> : null}
     </Panel>
@@ -663,9 +663,10 @@ function BrowserStatus(props: { snapshot: DashboardSnapshot; tick: number }): Re
   );
 }
 
-function RecentRuns({ snapshot }: { snapshot: DashboardSnapshot }): React.JSX.Element {
+function RecentRuns({ snapshot, selectedIndex, tick }: { snapshot: DashboardSnapshot; selectedIndex: number; tick: number }): React.JSX.Element {
   const terminalRows = process.stdout.rows ?? 40;
   const runLimit = terminalRows < 42 ? 4 : 7;
+  const pulseOn = Math.floor(tick / 5) % 2 === 0;
 
   if (snapshot.recentRuns.length === 0) {
     return (
@@ -676,15 +677,34 @@ function RecentRuns({ snapshot }: { snapshot: DashboardSnapshot }): React.JSX.El
     );
   }
 
+  const windowStart =
+    runLimit >= snapshot.recentRuns.length
+      ? 0
+      : Math.min(
+          Math.max(0, selectedIndex - Math.floor(runLimit / 2)),
+          snapshot.recentRuns.length - runLimit,
+        );
+  const visibleRuns = snapshot.recentRuns.slice(windowStart, windowStart + runLimit);
+
   return (
     <Box flexDirection="column">
-      {snapshot.recentRuns.slice(0, runLimit).map((run) => (
+      <Text color={TUI_THEME.accentSoft}>Up/Down browse • Enter/o open selected run</Text>
+      <Newline />
+      {visibleRuns.map((run, index) => {
+        const actualIndex = windowStart + index;
+        return (
         <Box key={run.runDir} flexDirection="column" marginBottom={1}>
-          <Text color={TUI_THEME.ok}>{run.workflow || "run"} :: {truncate(run.name || path.basename(run.runDir), 36)}</Text>
+          <Text
+            color={actualIndex === selectedIndex ? (pulseOn ? TUI_THEME.accentSoft : TUI_THEME.accent) : TUI_THEME.ok}
+            inverse={actualIndex === selectedIndex ? pulseOn : false}
+          >
+            {actualIndex === selectedIndex ? ">" : " "} {run.workflow || "run"} :: {truncate(run.name || path.basename(run.runDir), 36)}
+          </Text>
           <Text color={TUI_THEME.muted}>{run.createdAt}</Text>
           {run.goal ? <Text color={TUI_THEME.muted}>{truncate(run.goal, 44)}</Text> : null}
         </Box>
-      ))}
+        );
+      })}
     </Box>
   );
 }

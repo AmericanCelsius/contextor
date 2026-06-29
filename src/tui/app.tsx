@@ -44,6 +44,7 @@ export function ContextorTuiApp(props: {
   const [offlineMode, setOfflineMode] = useState(Boolean(props.initialOfflineMode));
   const [loadingSnapshot, setLoadingSnapshot] = useState(true);
   const [selectedActionIndex, setSelectedActionIndex] = useState(0);
+  const [selectedRecentRunIndex, setSelectedRecentRunIndex] = useState(0);
   const [activePanelView, setActivePanelView] = useState<TuiPanelView>("browser");
   const [bootVisible, setBootVisible] = useState(true);
   const [quitConfirmVisible, setQuitConfirmVisible] = useState(false);
@@ -170,6 +171,16 @@ export function ContextorTuiApp(props: {
   );
   const runtimeInfo = useMemo(() => getRuntimeEnvironmentInfo(), [tick]);
 
+  useEffect(() => {
+    const recentRunCount = snapshot?.recentRuns.length ?? 0;
+    if (recentRunCount === 0) {
+      setSelectedRecentRunIndex(0);
+      return;
+    }
+
+    setSelectedRecentRunIndex((current) => Math.min(current, recentRunCount - 1));
+  }, [snapshot?.recentRuns.length]);
+
   useInput((input, key) => {
     const label = describeInput(input, key);
 
@@ -279,6 +290,27 @@ export function ContextorTuiApp(props: {
       return;
     }
 
+    if (activePanelView === "runs" && snapshot?.recentRuns.length) {
+      if (key.upArrow) {
+        const nextIndex = selectedRecentRunIndex === 0 ? snapshot.recentRuns.length - 1 : selectedRecentRunIndex - 1;
+        setSelectedRecentRunIndex(nextIndex);
+        recordInput(label, `Selected run ${snapshot.recentRuns[nextIndex]?.name || snapshot.recentRuns[nextIndex]?.runDir}`);
+        return;
+      }
+
+      if (key.downArrow) {
+        const nextIndex = selectedRecentRunIndex === snapshot.recentRuns.length - 1 ? 0 : selectedRecentRunIndex + 1;
+        setSelectedRecentRunIndex(nextIndex);
+        recordInput(label, `Selected run ${snapshot.recentRuns[nextIndex]?.name || snapshot.recentRuns[nextIndex]?.runDir}`);
+        return;
+      }
+
+      if (key.return) {
+        openSelectedRecentRun(label);
+        return;
+      }
+    }
+
     if (key.upArrow) {
       const nextIndex = selectedActionIndex === 0 ? TUI_ACTIONS.length - 1 : selectedActionIndex - 1;
       setSelectedActionIndex(nextIndex);
@@ -356,6 +388,10 @@ export function ContextorTuiApp(props: {
     }
 
     if (input === "o") {
+      if (activePanelView === "runs" && snapshot?.recentRuns.length) {
+        openSelectedRecentRun(label);
+        return;
+      }
       recordInput(label, "Open latest output folder");
       void handleAction(findAction("open-output"));
       return;
@@ -556,10 +592,16 @@ export function ContextorTuiApp(props: {
     if (action.panelView) {
       setConfirmationState(null);
       setActivePanelView(action.panelView);
+      if (action.panelView === "runs") {
+        setSelectedRecentRunIndex(0);
+      }
       setRunState({
         state: "idle",
         title: action.label,
-        message: `Focused the ${action.panelView} panel.`,
+        message:
+          action.panelView === "runs"
+            ? "Focused latest runs. Use Up/Down to browse runs, then Enter or o to open the selected run folder."
+            : `Focused the ${action.panelView} panel.`,
         liveLogs: [],
         eventCount: 0,
       });
@@ -571,6 +613,27 @@ export function ContextorTuiApp(props: {
     }
     setConfirmationState(null);
     await beginWorkflow(action, {});
+  }
+
+  function openSelectedRecentRun(label: string): void {
+    const run = snapshot?.recentRuns[selectedRecentRunIndex];
+    if (!run) {
+      recordInput(label, "No run selected");
+      return;
+    }
+
+    openPathInShell(run.runDir);
+    recordInput(label, `Opened run ${run.name || run.runDir}`);
+    setRunState({
+      state: "idle",
+      title: "View Latest Runs",
+      message: `Opened selected run folder: ${run.runDir}`,
+      liveLogs: [],
+      eventCount: 0,
+      actionId: "view-runs",
+      abortable: false,
+      abortRequested: false,
+    });
   }
 
   async function primeFolderForm(initialFields: TuiFormField[]): Promise<void> {
@@ -923,7 +986,7 @@ export function ContextorTuiApp(props: {
           width={menuWidth}
           minHeight={panelMinHeight}
           tick={tick}
-          active={!activeFormAction}
+          active={!activeFormAction && activePanelView !== "runs"}
         />
         <Box marginLeft={compactLayout ? 0 : 1} marginTop={compactLayout ? 1 : 0} flexGrow={1} flexDirection="column">
           {activeFormAction ? (
@@ -946,7 +1009,14 @@ export function ContextorTuiApp(props: {
         </Box>
         {showInfoPane ? (
           <Box marginLeft={compactLayout ? 0 : 1} marginTop={compactLayout ? 1 : 0}>
-            <InfoPane view={activePanelView} snapshot={snapshot} tick={tick} width={infoWidth} minHeight={panelMinHeight} />
+            <InfoPane
+              view={activePanelView}
+              snapshot={snapshot}
+              tick={tick}
+              width={infoWidth}
+              minHeight={panelMinHeight}
+              selectedRecentRunIndex={selectedRecentRunIndex}
+            />
           </Box>
         ) : null}
       </Box>

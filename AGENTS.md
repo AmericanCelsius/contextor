@@ -79,6 +79,8 @@ npm run smoke:folder
 - keep the Offline Mode command visible in the TUI command grid
 - keep directory-copy success prompts for opening the exact generated run folder
 - keep literal directory-copy output filenames source-folder-based, e.g. `my_project_context.md` and `my_project_context.txt`
+- keep `Export Literal Folder Copy` as the first TUI command and `View Latest Runs` as the second TUI command unless product direction changes explicitly
+- keep the latest-runs panel browsable with Up/Down and openable with Enter or `o`
 
 ## Safety Notes
 

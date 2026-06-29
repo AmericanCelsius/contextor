@@ -51,6 +51,13 @@ Offline mode does not require WiFi, API keys, Chrome remote debugging, browser a
 
 The TUI now includes a `Prompt Console` action as a future-facing panel scaffold. It does not execute arbitrary agentic browser-control tasks in `v0.2.2`.
 
+Current top TUI actions:
+
+- `1. Export Literal Folder Copy`
+- `2. View Latest Runs`
+
+When the latest-runs panel is focused, use `↑` / `↓` to browse runs and `Enter` or `o` to open the selected run folder.
+
 ## Useful First Commands
 
 Check browser attach status:

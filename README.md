@@ -189,15 +189,16 @@ The top bar shows:
 The left panel lists the main available actions.
 
 This is the main action menu and currently includes entries such as:
-- Compile Open Tabs
+- Export Literal Folder Copy
+- View Latest Runs
 - Prompt Console
 - Summarize Folder Context
-- Export Literal Folder Copy
+- Compile Open Tabs
 - Export Current Page
 - Launch Chrome Debug Browser
 - Open Output Runs Folder
 - View Latest Logs
-- View Recent Runs
+- Offline Mode
 - View Current Config Summary
 
 ### 3. Mission Control panel
@@ -294,12 +295,13 @@ The TUI is designed for keyboard-first operation.
 - `u` focus recent runs
 - `c` focus config
 - `b` focus browser status
+- When the runs panel is focused, `↑` / `↓` browse runs and `Enter` opens the selected run folder
 
 ### Runtime controls
 - `x` open the abort prompt for active workflows
 - `g` launch the Chrome debug helper
 - `r` refresh
-- `o` open the `output/runs` folder
+- `o` open the `output/runs` folder, or the selected run folder when the runs panel is focused
 
 ### Form and session control
 - `Esc` back out of forms
