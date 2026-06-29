@@ -26,16 +26,19 @@ const CORNER_BADGE_FRAMES = [
   [" .--------------------. ", " | CONTEXTOR // LIVE* | ", " '--------------------' "],
 ];
 const BOOT_LOGO_WIDE = [
-  "  CCCCC   OOO   N   N  TTTTT  EEEEE  X   X  TTTTT   OOO   RRRR  ",
-  " C       O   O  NN  N    T    E       X X     T    O   O  R   R ",
-  " C       O   O  N N N    T    EEEE     X      T    O   O  RRRR  ",
-  " C       O   O  N  NN    T    E       X X     T    O   O  R  R  ",
-  "  CCCCC   OOO   N   N    T    EEEEE  X   X    T     OOO   R   R ",
+  "  ____ ___  _   _ _____ _____ ____  _____ ___  ____  ",
+  " / ___/ _ \\| \\ | |_   _| ____|  _ \\|_   _/ _ \\|  _ \\ ",
+  "| |  | | | |  \\| | | | |  _| | |_) | | || | | | |_) |",
+  "| |__| |_| | |\\  | | | | |___|  _ <  | || |_| |  _ < ",
+  " \\____\\___/|_| \\_| |_| |_____|_| \\_\\ |_| \\___/|_| \\_\\",
 ];
 const BOOT_LOGO_COMPACT = [
-  "  CONTEXTOR",
-  "  LOCAL CONTEXT CONSOLE",
-  "  FILES  RUNS  LOGS",
+  "  ____ ___  _   _ _____ _____ ____  ",
+  " / ___/ _ \\| \\ | |_   _| ____|  _ \\ ",
+  "| |  | | | |  \\| | | | |  _| | |_) |",
+  "| |__| |_| | |\\  | | | | |___|  _ < ",
+  " \\____\\___/|_| \\_| |_| |_____|_| \\_\\",
+  "          CONTEXTOR",
 ];
 const BOOT_LOGO_MINI = ["  CONTEXTOR  ", "  terminal context console  "];
 
@@ -50,8 +53,10 @@ export function BootSplash({ tick }: { tick: number }): React.JSX.Element {
       : terminalRows < 26 || terminalWidth < 96
         ? BOOT_LOGO_COMPACT
         : BOOT_LOGO_WIDE;
+  const normalizedArt = normalizeAsciiArt(art);
+  const artWidth = normalizedArt[0]?.length ?? 40;
   const splashWidth = Math.min(
-    Math.max(40, art[0]?.length ? art[0].length + 8 : 40),
+    Math.max(40, artWidth + 8),
     Math.max(40, terminalWidth - 6),
   );
   const splashHeight = terminalRows < 18 ? 8 : terminalRows < 26 ? 11 : 16;
@@ -69,7 +74,7 @@ export function BootSplash({ tick }: { tick: number }): React.JSX.Element {
               <Newline />
             </>
           ) : null}
-          {art.map((line, index) => (
+          {normalizedArt.map((line, index) => (
             <Text key={`${index}-${line}`} color={index % 2 === 0 ? TUI_THEME.accentSoft : TUI_THEME.accent}>
               {line}
             </Text>
@@ -813,6 +818,11 @@ function truncate(value: string, maxLength: number): string {
   }
 
   return `${value.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
+}
+
+function normalizeAsciiArt(lines: string[]): string[] {
+  const width = Math.max(...lines.map((line) => line.length));
+  return lines.map((line) => line.padEnd(width, " "));
 }
 
 function renderValueWithCursor(value: string, hasRealValue: boolean, cursorIndex: number): string {
