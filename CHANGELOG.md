@@ -18,6 +18,7 @@ It is meant to be a fast reference for what changed across the major build itera
 - Made the latest-runs panel browsable from the TUI and openable with `Enter` or `o`.
 - Replaced the malformed boot splash wordmark with a shorter fixed-width startup screen.
 - Restored the earlier Contextor ASCII splash font with normalized line widths to prevent wrapping.
+- Added macOS fresh-clone startup scripts that install dependencies, build, optionally link `contextor`, and launch the TUI without requiring a preexisting global command.
 - Renamed the two folder-oriented TUI actions so they are visually and semantically easier to distinguish.
 - Tightened dashboard resizing so the terminal layout collapses sooner on mid-sized screens and short terminals.
 - Refreshed the startup animation and added a small retro Contextor status badge in the live dashboard header.

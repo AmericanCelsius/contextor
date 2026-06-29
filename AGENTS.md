@@ -9,6 +9,7 @@ Primary surfaces:
 - CLI in `src/cli/index.ts`
 - TUI in `src/tui/`
 - orchestration in `src/core/orchestrator.ts`
+- macOS fresh-clone bootstrap scripts in `scripts/start-macos.sh` and `scripts/setup-macos.sh`
 
 ## Core Constraints
 
@@ -49,6 +50,18 @@ npm run build
 npm run smoke:folder
 ```
 
+Fresh macOS clone path:
+
+```bash
+bash scripts/start-macos.sh --offline
+```
+
+Setup-only path:
+
+```bash
+bash scripts/setup-macos.sh --link
+```
+
 ## Browser Notes
 
 - open-tab workflows require a Chrome session launched with `--remote-debugging-port=9222`
@@ -67,6 +80,8 @@ npm run smoke:folder
 - keep folder path autocomplete and quoted-path handling working
 - preserve quit confirmation on `q`
 - avoid React key collisions in repeated TUI lists so warnings do not bleed into the active terminal
+- keep the fresh macOS startup scripts working without assuming `contextor` is globally linked
+- keep `scripts/start-macos.sh` launching with direct `node dist/cli/index.js tui` after install/build so stdin remains a real interactive TTY
 - keep fixed-width TUI panels clamped to the current terminal width
 - keep folder compile defaulted to `all` unless the operator explicitly narrows it
 - preserve the folder compile confirmation step before the run starts

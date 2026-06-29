@@ -26,6 +26,7 @@ Contextor is designed to become a serious **browser-first, debuggable, terminal-
 - [Where Claw Code Fits](#where-claw-code-fits)
 - [Startup Use Case](#startup-use-case)
 - [Deployment Model](#deployment-model)
+- [Fresh macOS Start](#fresh-macos-start)
 - [Roadmap](#roadmap)
 - [Install and Run](#install-and-run)
 - [Final Positioning](#final-positioning)
@@ -683,6 +684,43 @@ This setup gives Contextor:
 
 ---
 
+## Fresh macOS Start
+
+Use this path on a new Mac or fresh clone. It does not assume the `contextor` command is already installed globally.
+
+```bash
+git clone https://github.com/AmericanCelsius/contextor.git
+cd contextor
+bash scripts/start-macos.sh --offline
+```
+
+That script:
+- verifies macOS and an interactive terminal
+- verifies Node.js `>=20` and npm
+- offers a Homebrew Node install if Node is missing and Homebrew is available
+- runs `npm install`
+- runs `npm run build`
+- launches the TUI directly with `node dist/cli/index.js tui`
+
+Setup without launching:
+
+```bash
+bash scripts/setup-macos.sh
+```
+
+Setup and make `contextor` available globally in your shell:
+
+```bash
+bash scripts/setup-macos.sh --link
+contextor start --offline
+```
+
+If `contextor start` or `contextor launch` says `command not found`, the package has not been linked yet. Use `bash scripts/start-macos.sh --offline` from the repo, or run `bash scripts/setup-macos.sh --link`.
+
+If Enter or navigation keys do not work, launch from a real interactive terminal such as Terminal.app or iTerm2. Avoid launching the TUI from a non-interactive IDE task runner.
+
+---
+
 ## Roadmap
 
 Contextor’s roadmap should be understood as staged expansion rather than random feature accumulation.
@@ -739,7 +777,19 @@ Focus on:
 
 ## Install and Run
 
-### Install
+### Fresh macOS one-liner
+
+```bash
+bash scripts/start-macos.sh --offline
+```
+
+Optional fullscreen:
+
+```bash
+bash scripts/start-macos.sh --offline --fullscreen
+```
+
+### Manual install
 ```bash
 npm install
 npm run build
@@ -751,6 +801,15 @@ npm link
 ```
 
 ### Launch the TUI
+Without global linking:
+
+```bash
+node dist/cli/index.js tui
+node dist/cli/index.js tui --offline
+```
+
+After `npm link`:
+
 ```bash
 contextor tui
 ```

@@ -2,6 +2,31 @@
 
 ## Install
 
+Fresh macOS clone:
+
+```bash
+git clone https://github.com/AmericanCelsius/contextor.git
+cd contextor
+bash scripts/start-macos.sh --offline
+```
+
+This installs dependencies, builds Contextor, and launches the TUI directly. It does not require the `contextor` shell command to exist yet.
+
+Setup only:
+
+```bash
+bash scripts/setup-macos.sh
+```
+
+Setup and install the global `contextor` command:
+
+```bash
+bash scripts/setup-macos.sh --link
+contextor start --offline
+```
+
+Manual path:
+
 ```bash
 npm install
 npm run build
@@ -21,6 +46,12 @@ If you only want a separate automation profile:
 
 ## Launch The TUI
 
+Fresh-clone safe launch:
+
+```bash
+bash scripts/start-macos.sh --offline
+```
+
 ```bash
 node dist/cli/index.js tui
 ```
@@ -34,11 +65,14 @@ contextor tui
 One-line bootstrap:
 
 ```bash
+npm run mac:start -- --offline
 contextor launch
 contextor start
 contextor start --offline
 contextor launch --offline
 ```
+
+If `contextor` is not found, run `bash scripts/setup-macos.sh --link` or keep using `bash scripts/start-macos.sh --offline`.
 
 Local-only offline mode:
 

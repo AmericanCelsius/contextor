@@ -16,6 +16,9 @@
     "tui": "tsx src/cli/index.ts tui",
     "gui": "tsx src/cli/index.ts tui",
     "start": "node dist/cli/index.js tui",
+    "mac:setup": "bash scripts/setup-macos.sh",
+    "mac:start": "bash scripts/start-macos.sh",
+    "fresh:start": "bash scripts/start-macos.sh --offline",
     "smoke:folder": "node dist/cli/index.js folder ./docs --goal \"summarize the documentation in this repository\""
   },
   "engines": {
