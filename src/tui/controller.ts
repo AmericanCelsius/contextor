@@ -100,6 +100,9 @@ export async function executeWorkflow(
             folderPath: values.folderPath,
             format: parseCopyFormat(values.format),
             includeHidden: parseIncludeHidden(values.includeHidden),
+            chunkMarkdown: parseToggle(values.chunkMarkdown),
+            chunkLineTarget: parsePositiveInteger(values.chunkLineTarget, 10_000),
+            chunkByteTarget: parsePositiveInteger(values.chunkByteTarget, 8 * 1024 * 1024),
           },
           observe,
           options.signal,
@@ -205,6 +208,15 @@ function parseCopyFormat(value: string | undefined): "md" | "txt" | "both" {
 
 function parseIncludeHidden(value: string | undefined): boolean {
   return value?.trim().toLowerCase() === "on";
+}
+
+function parseToggle(value: string | undefined): boolean {
+  return value?.trim().toLowerCase() === "on";
+}
+
+function parsePositiveInteger(value: string | undefined, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
 }
 
 function truncate(value: string, maxLength: number): string {

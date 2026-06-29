@@ -6,6 +6,13 @@ import { RunLogger } from "../core/logger";
 import { CopyFolderOptions, DirectoryCopyBundle, RunDirectories, RunObserver, RuntimeEnvironmentInfo, WorkflowResult } from "../core/types";
 import { writeJsonFile } from "../utils/files";
 import { getRuntimeEnvironmentInfo } from "../utils/system";
+import {
+  createDirectoryCopyChunkPlan,
+  DirectoryCopyChunk,
+  DirectoryCopyChunkPlan,
+  formatChunkSuffix,
+  normalizeDirectoryCopyChunkSettings,
+} from "./directoryCopyChunking";
 
 export async function runCopyFolderWorkflow(input: {
   filesystemAdapter: FilesystemAdapter;
@@ -51,14 +58,24 @@ export async function runCopyFolderWorkflow(input: {
 
   const runtimeInfo = getRuntimeEnvironmentInfo();
   const outputFileBase = buildDirectoryCopyOutputBase(bundle.rootName);
-  const contextMarkdownPath = path.join(input.runDirectories.root, `${outputFileBase}_context.md`);
-  const contextTextPath = path.join(input.runDirectories.root, `${outputFileBase}_context.txt`);
   const manifestPath = path.join(input.runDirectories.manifests, "sources.json");
   const runManifestPath = path.join(input.runDirectories.manifests, "run.json");
+  const chunkSettings = normalizeDirectoryCopyChunkSettings({
+    enabled: input.options.chunkMarkdown,
+    lineTarget: input.options.chunkLineTarget,
+    byteTarget: input.options.chunkByteTarget,
+  });
+  const chunkPlan = chunkSettings.enabled ? createDirectoryCopyChunkPlan(bundle, chunkSettings) : undefined;
+  const outputFiles = await writeDirectoryCopyOutputs({
+    runRoot: input.runDirectories.root,
+    outputFileBase,
+    bundle,
+    options: input.options,
+    runtimeInfo,
+    chunkPlan,
+  });
 
   await Promise.all([
-    fs.writeFile(contextMarkdownPath, renderDirectoryCopyMarkdown(bundle, input.options, runtimeInfo), "utf8"),
-    fs.writeFile(contextTextPath, renderDirectoryCopyText(bundle, input.options, runtimeInfo), "utf8"),
     writeJsonFile(manifestPath, {
       generatedAt: new Date().toISOString(),
       workflow: "directory-copy",
@@ -69,6 +86,7 @@ export async function runCopyFolderWorkflow(input: {
       directories: bundle.directories,
       requestedFormat: input.options.format,
       includeHidden: Boolean(input.options.includeHidden),
+      chunking: buildChunkManifest(chunkPlan, outputFiles.markdownPaths, outputFiles.textPaths),
       totalFiles: bundle.totalFiles,
       includedFiles: bundle.includedFiles,
       skippedFiles: bundle.skippedFiles,
@@ -94,9 +112,12 @@ export async function runCopyFolderWorkflow(input: {
       runtime: runtimeInfo,
       requestedFormat: input.options.format,
       includeHidden: Boolean(input.options.includeHidden),
+      chunking: buildChunkManifest(chunkPlan, outputFiles.markdownPaths, outputFiles.textPaths),
       outputFiles: {
-        markdown: contextMarkdownPath,
-        text: contextTextPath,
+        markdown: outputFiles.contextMarkdownPath,
+        text: outputFiles.contextTextPath,
+        markdownChunks: outputFiles.markdownPaths,
+        textChunks: outputFiles.textPaths,
       },
     }),
   ]);
@@ -109,17 +130,111 @@ export async function runCopyFolderWorkflow(input: {
     requestedFormat: input.options.format,
     includeHidden: Boolean(input.options.includeHidden),
     outputFileBase,
+    chunking: buildChunkManifest(chunkPlan, outputFiles.markdownPaths, outputFiles.textPaths),
   });
+
+  const chunkSummary = chunkPlan
+    ? ` Generated ${chunkPlan.chunks.length} markdown continuation part(s) and ${outputFiles.textPaths.length} text continuation part(s).`
+    : "";
 
   return {
     workflow: "directory-copy",
-    summary: `Exported ${bundle.includedFiles} readable file(s) from ${bundle.totalFiles} scanned file(s) into literal directory copy artifacts.`,
+    summary: `Exported ${bundle.includedFiles} readable file(s) from ${bundle.totalFiles} scanned file(s) into literal directory copy artifacts.${chunkSummary}`,
     runDir: input.runDirectories.root,
-    contextMarkdownPath,
-    contextTextPath,
+    contextMarkdownPath: outputFiles.contextMarkdownPath,
+    contextTextPath: outputFiles.contextTextPath,
     manifestPath,
-    artifactPaths: [],
+    artifactPaths: outputFiles.artifactPaths,
     logPath: input.logger.logPath,
+  };
+}
+
+async function writeDirectoryCopyOutputs(input: {
+  runRoot: string;
+  outputFileBase: string;
+  bundle: DirectoryCopyBundle;
+  options: CopyFolderOptions;
+  runtimeInfo: RuntimeEnvironmentInfo;
+  chunkPlan?: DirectoryCopyChunkPlan;
+}): Promise<{
+  contextMarkdownPath: string;
+  contextTextPath: string;
+  markdownPaths: string[];
+  textPaths: string[];
+  artifactPaths: string[];
+}> {
+  if (!input.chunkPlan) {
+    const contextMarkdownPath = path.join(input.runRoot, `${input.outputFileBase}_context.md`);
+    const contextTextPath = path.join(input.runRoot, `${input.outputFileBase}_context.txt`);
+    await Promise.all([
+      fs.writeFile(contextMarkdownPath, renderDirectoryCopyMarkdown(input.bundle, input.options, input.runtimeInfo), "utf8"),
+      fs.writeFile(contextTextPath, renderDirectoryCopyText(input.bundle, input.options, input.runtimeInfo), "utf8"),
+    ]);
+
+    return {
+      contextMarkdownPath,
+      contextTextPath,
+      markdownPaths: [contextMarkdownPath],
+      textPaths: [contextTextPath],
+      artifactPaths: [],
+    };
+  }
+
+  const markdownPaths: string[] = [];
+  const textPaths: string[] = [];
+  const total = input.chunkPlan.chunks.length;
+  for (const chunk of input.chunkPlan.chunks) {
+    const suffix = formatChunkSuffix(chunk.index, total);
+    const markdownPath = path.join(input.runRoot, `${input.outputFileBase}_context_${suffix}.md`);
+    const textPath = path.join(input.runRoot, `${input.outputFileBase}_context_${suffix}.txt`);
+    markdownPaths.push(markdownPath);
+    textPaths.push(textPath);
+    await Promise.all([
+      fs.writeFile(
+        markdownPath,
+        renderDirectoryCopyMarkdown(input.bundle, input.options, input.runtimeInfo, {
+          chunk,
+          total,
+          lineTarget: input.chunkPlan.settings.lineTarget,
+          byteTarget: input.chunkPlan.settings.byteTarget,
+        }),
+        "utf8",
+      ),
+      fs.writeFile(
+        textPath,
+        renderDirectoryCopyText(input.bundle, input.options, input.runtimeInfo, {
+          chunk,
+          total,
+          lineTarget: input.chunkPlan.settings.lineTarget,
+          byteTarget: input.chunkPlan.settings.byteTarget,
+        }),
+        "utf8",
+      ),
+    ]);
+  }
+
+  return {
+    contextMarkdownPath: markdownPaths[0] ?? path.join(input.runRoot, `${input.outputFileBase}_context_part01of01.md`),
+    contextTextPath: textPaths[0] ?? path.join(input.runRoot, `${input.outputFileBase}_context_part01of01.txt`),
+    markdownPaths,
+    textPaths,
+    artifactPaths: [...markdownPaths, ...textPaths],
+  };
+}
+
+function buildChunkManifest(
+  chunkPlan: DirectoryCopyChunkPlan | undefined,
+  markdownPaths: string[],
+  textPaths: string[],
+): Record<string, unknown> {
+  return {
+    enabled: Boolean(chunkPlan),
+    chunkLineTarget: chunkPlan?.settings.lineTarget,
+    chunkByteTarget: chunkPlan?.settings.byteTarget,
+    chunkCount: chunkPlan?.chunks.length ?? 0,
+    markdownChunks: chunkPlan ? markdownPaths : [],
+    textChunks: chunkPlan ? textPaths : [],
+    oversizedWarnings: chunkPlan?.warnings ?? [],
   };
 }
 
@@ -140,6 +255,12 @@ function renderDirectoryCopyMarkdown(
   bundle: DirectoryCopyBundle,
   options: CopyFolderOptions,
   runtimeInfo: RuntimeEnvironmentInfo,
+  chunkMeta?: {
+    chunk: DirectoryCopyChunk;
+    total: number;
+    lineTarget: number;
+    byteTarget?: number;
+  },
 ): string {
   const runtimeLines = [
     `- Local time: ${runtimeInfo.localTimestamp}`,
@@ -156,11 +277,16 @@ function renderDirectoryCopyMarkdown(
   }
 
   const directoryListing = renderDirectoryListingMarkdown(bundle);
+  const activeEntries = chunkMeta ? chunkMeta.chunk.entries : bundle.entries;
+  const chunkNotice = chunkMeta
+    ? renderDirectoryCopyMarkdownChunkNotice(chunkMeta.chunk, chunkMeta.total, chunkMeta.lineTarget, chunkMeta.byteTarget)
+    : "";
+  const filesIncluded = chunkMeta ? renderFilesIncludedMarkdown(chunkMeta.chunk.entries) : "";
 
   const sections =
-    bundle.entries.length === 0
+    activeEntries.length === 0
       ? "_No file bodies were captured because the selected directory is empty._"
-      : bundle.entries.map((entry, index) => renderDirectoryCopyMarkdownEntry(entry, index + 1)).join("\n\n");
+      : activeEntries.map((entry, index) => renderDirectoryCopyMarkdownEntry(entry, index + 1)).join("\n\n");
 
   return `# Literal Directory Copy
 
@@ -171,10 +297,12 @@ function renderDirectoryCopyMarkdown(
 - Total files scanned: ${bundle.totalFiles}
 - Text-representable files copied: ${bundle.includedFiles}
 - Non-text or error entries represented: ${bundle.skippedFiles}
+${chunkNotice}
 
 # Complete Directory Listing
 
 ${directoryListing}
+${filesIncluded}
 
 # Directory Copy Goal
 
@@ -197,6 +325,35 @@ ${runtimeLines.join("\n")}
 # Aggregated File Bodies
 
 ${sections}
+`;
+}
+
+function renderDirectoryCopyMarkdownChunkNotice(
+  chunk: DirectoryCopyChunk,
+  total: number,
+  lineTarget: number,
+  byteTarget?: number,
+): string {
+  const warnings = chunk.warnings.length > 0 ? `\n- Warnings: ${chunk.warnings.join(" | ")}` : "";
+  return `
+- Continuation part: Part ${chunk.index} of ${total}
+- Chunk line target: ${lineTarget}
+- Chunk byte target: ${byteTarget ?? "not set"}
+- Estimated part size: ${chunk.estimatedLines} lines, ${chunk.estimatedBytes} bytes
+- Oversized part: ${chunk.oversized ? "yes" : "no"}${warnings}`;
+}
+
+function renderFilesIncludedMarkdown(entries: DirectoryCopyBundle["entries"]): string {
+  const body =
+    entries.length === 0
+      ? "_No files are assigned to this part._"
+      : entries.map((entry) => `- \`${entry.relativePath}\` (${entry.size} bytes, ${entry.contentKind})`).join("\n");
+
+  return `
+
+# Files Included In This Part
+
+${body}
 `;
 }
 
@@ -238,6 +395,12 @@ function renderDirectoryCopyText(
   bundle: DirectoryCopyBundle,
   options: CopyFolderOptions,
   runtimeInfo: RuntimeEnvironmentInfo,
+  chunkMeta?: {
+    chunk: DirectoryCopyChunk;
+    total: number;
+    lineTarget: number;
+    byteTarget?: number;
+  },
 ): string {
   const lines = [
     "LITERAL DIRECTORY COPY",
@@ -248,9 +411,22 @@ function renderDirectoryCopyText(
     `Total files scanned: ${bundle.totalFiles}`,
     `Text-representable files copied: ${bundle.includedFiles}`,
     `Non-text or error entries represented: ${bundle.skippedFiles}`,
-    "",
-    "COMPLETE DIRECTORY LISTING",
   ];
+
+  if (chunkMeta) {
+    lines.push(
+      `Continuation part: Part ${chunkMeta.chunk.index} of ${chunkMeta.total}`,
+      `Chunk line target: ${chunkMeta.lineTarget}`,
+      `Chunk byte target: ${chunkMeta.byteTarget ?? "not set"}`,
+      `Estimated part size: ${chunkMeta.chunk.estimatedLines} lines, ${chunkMeta.chunk.estimatedBytes} bytes`,
+      `Oversized part: ${chunkMeta.chunk.oversized ? "yes" : "no"}`,
+    );
+    if (chunkMeta.chunk.warnings.length > 0) {
+      lines.push(`Warnings: ${chunkMeta.chunk.warnings.join(" | ")}`);
+    }
+  }
+
+  lines.push("", "COMPLETE DIRECTORY LISTING");
 
   if (bundle.entries.length === 0) {
     lines.push("(No files were found in the selected directory.)");
@@ -279,11 +455,24 @@ function renderDirectoryCopyText(
     lines.push(`Location note: ${runtimeInfo.approximateLocationNote}`);
   }
 
+  if (chunkMeta) {
+    lines.push("", "FILES INCLUDED IN THIS PART");
+    if (chunkMeta.chunk.entries.length === 0) {
+      lines.push("(No files are assigned to this part.)");
+    } else {
+      for (const entry of chunkMeta.chunk.entries) {
+        lines.push(`- ${entry.relativePath} (${entry.size} bytes, ${entry.contentKind})`);
+      }
+    }
+  }
+
+  const activeEntries = chunkMeta ? chunkMeta.chunk.entries : bundle.entries;
+
   lines.push("", "AGGREGATED FILE BODIES");
-  if (bundle.entries.length === 0) {
+  if (activeEntries.length === 0) {
     lines.push("(No file bodies were captured because the selected directory is empty.)");
   } else {
-    for (const entry of bundle.entries) {
+    for (const entry of activeEntries) {
       lines.push(
         "",
         `===== START FILE: ${entry.relativePath} =====`,

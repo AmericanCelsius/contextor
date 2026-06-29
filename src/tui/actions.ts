@@ -45,6 +45,31 @@ export const TUI_ACTIONS: TuiAction[] = [
         ],
         hint: "Include dotfiles and dot-directories such as .gitignore and .claude.",
       },
+      {
+        id: "chunkMarkdown",
+        label: "Chunk Markdown",
+        type: "select",
+        value: "off",
+        options: [
+          { label: "Off", value: "off" },
+          { label: "On", value: "on" },
+        ],
+        hint: "When on, write continuation markdown/text files for easier ChatGPT upload.",
+      },
+      {
+        id: "chunkLineTarget",
+        label: "Chunk Lines",
+        type: "text",
+        value: "10000",
+        hint: "Target max rendered lines per part. Whole file bodies are never split.",
+      },
+      {
+        id: "chunkByteTarget",
+        label: "Chunk Bytes",
+        type: "text",
+        value: "8388608",
+        hint: "Target max bytes per part. Default is 8 MB.",
+      },
     ],
   },
   {

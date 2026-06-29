@@ -1133,6 +1133,9 @@ function buildFormInsights(
     if (action.id === "directory-copy") {
       const formatValue = findFieldValue(fields, "format") || "both";
       const includeHiddenValue = findFieldValue(fields, "includeHidden") || "off";
+      const chunkMarkdownValue = findFieldValue(fields, "chunkMarkdown") || "off";
+      const chunkLineTarget = findFieldValue(fields, "chunkLineTarget") || "10000";
+      const chunkByteTarget = findFieldValue(fields, "chunkByteTarget") || "8388608";
       insights.push({
         tone: "ok",
         label: "Literal copy mode",
@@ -1150,6 +1153,14 @@ function buildFormInsights(
           includeHiddenValue === "on"
             ? "Dotfiles and dot-directories will be included, including entries such as .gitignore and .claude."
             : "Dotfiles and dot-directories will be skipped unless you switch this field on.",
+      });
+      insights.push({
+        tone: chunkMarkdownValue === "on" ? "ok" : "neutral",
+        label: "Strategic chunking",
+        details:
+          chunkMarkdownValue === "on"
+            ? `Continuation parts enabled. Target ${chunkLineTarget.trim() || "10000"} lines and ${chunkByteTarget.trim() || "8388608"} bytes per part; file bodies stay whole.`
+            : "Single markdown/text outputs will be generated unless you switch chunking on.",
       });
     }
   }
@@ -1401,6 +1412,11 @@ function buildFolderWorkflowConfirmationDetails(
   if (action.id === "directory-copy") {
     details.push(`Requested format: ${(values.format || "both").trim() || "both"}`);
     details.push(`Include hidden: ${(values.includeHidden || "off").trim() || "off"}`);
+    details.push(`Chunk markdown/text: ${(values.chunkMarkdown || "off").trim() || "off"}`);
+    if ((values.chunkMarkdown || "off").trim().toLowerCase() === "on") {
+      details.push(`Chunk line target: ${(values.chunkLineTarget || "10000").trim() || "10000"}`);
+      details.push(`Chunk byte target: ${(values.chunkByteTarget || "8388608").trim() || "8388608"}`);
+    }
   }
 
   return details;

@@ -6,6 +6,9 @@ It is meant to be a fast reference for what changed across the major build itera
 
 ## Current UI Pass
 
+- Added strategic markdown/text chunking for literal directory-copy exports, with TUI controls and CLI flags for chunk enablement, line target, and byte target.
+- Chunked directory-copy exports now write source-folder-based continuation files such as `{source_folder}_context_part01of03.md` and matching `.txt` parts.
+- Updated directory-copy manifests to record chunk settings, chunk output paths, chunk counts, and oversized-file warnings.
 - Added first-class offline mode through `contextor offline`, `contextor tui --offline`, and `contextor start/launch --offline`.
 - Added an Offline Mode command-grid entry so local-only operation is reachable inside the TUI.
 - Disabled browser diagnostics and browser workflows cleanly while offline mode is active.

@@ -64,6 +64,9 @@ program
   .option("--goal <goal>", "Goal string for directory copy context", "create a literal directory copy for downstream review")
   .option("--format <format>", "Requested primary output format: md, txt, or both", "both")
   .option("--include-hidden", "Include dotfiles and dot-directories such as .gitignore and .claude")
+  .option("--chunk-markdown", "Split markdown and text outputs into strategic continuation chunks")
+  .option("--chunk-lines <count>", "Target maximum rendered lines per chunk", "10000")
+  .option("--chunk-bytes <bytes>", "Target maximum rendered bytes per chunk", "8388608")
   .option("--no-open-output-prompt", "Do not ask to open the generated run folder after export")
   .option("--config <path>", "Path to a Contextor config file")
   .action(async (folderPath, options) => {
@@ -75,6 +78,9 @@ program
         folderPath,
         format: parseCopyFormat(options.format),
         includeHidden: Boolean(options.includeHidden),
+        chunkMarkdown: Boolean(options.chunkMarkdown),
+        chunkLineTarget: parsePositiveInteger(options.chunkLines, 10_000),
+        chunkByteTarget: parsePositiveInteger(options.chunkBytes, 8 * 1024 * 1024),
       },
       progress,
     );
@@ -330,6 +336,11 @@ function parseCopyFormat(value: string | undefined): "md" | "txt" | "both" {
   }
 
   return "both";
+}
+
+function parsePositiveInteger(value: string | undefined, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
 }
 
 function createWorkflowProgressReporter(): (event: RunEvent) => void {

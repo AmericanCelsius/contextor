@@ -25,6 +25,7 @@ Primary surfaces:
 - `task-console`: prompt-console scaffold for future arbitrary connector-backed task entry inside the TUI
 - `folder`: compile a folder into `context.md`
 - `copy-folder`: export a literal directory copy into aggregated markdown/text outputs
+- `copy-folder --chunk-markdown`: export a literal directory copy into strategic continuation markdown/text chunks for easier downstream upload
 - `page-export`: export current page to markdown, text, PDF
 - `social-audit`: legacy read-only Instagram audit fallback kept outside the main TUI
 - `browser-status`: inspect CDP/browser attach health
@@ -94,6 +95,7 @@ bash scripts/setup-macos.sh --link
 - keep the Offline Mode command visible in the TUI command grid
 - keep directory-copy success prompts for opening the exact generated run folder
 - keep literal directory-copy output filenames source-folder-based, e.g. `my_project_context.md` and `my_project_context.txt`
+- keep strategic directory-copy chunks source-folder-based, e.g. `my_project_context_part01of03.md`, and do not split file bodies across chunks
 - keep `Export Literal Folder Copy` as the first TUI command and `View Latest Runs` as the second TUI command unless product direction changes explicitly
 - keep the latest-runs panel browsable with Up/Down and openable with Enter or `o`
 

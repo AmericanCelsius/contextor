@@ -135,6 +135,9 @@ export interface CopyFolderOptions {
   folderPath: string;
   format: "md" | "txt" | "both";
   includeHidden?: boolean;
+  chunkMarkdown?: boolean;
+  chunkLineTarget?: number;
+  chunkByteTarget?: number;
 }
 
 export interface ExportCurrentPageOptions {
