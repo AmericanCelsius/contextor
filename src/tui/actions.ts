@@ -29,10 +29,10 @@ export const TUI_ACTIONS: TuiAction[] = [
         value: "both",
         options: [
           { label: "Markdown + Text", value: "both" },
-          { label: "Markdown priority", value: "md" },
-          { label: "Text priority", value: "txt" },
+          { label: "Markdown only", value: "md" },
+          { label: "Text only", value: "txt" },
         ],
-        hint: "Contextor still writes both root outputs for compatibility.",
+        hint: "When both is selected, markdown and text are written into separate folders inside the run.",
       },
       {
         id: "includeHidden",

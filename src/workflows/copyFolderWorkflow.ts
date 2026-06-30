@@ -134,12 +134,16 @@ export async function runCopyFolderWorkflow(input: {
   });
 
   const chunkSummary = chunkPlan
-    ? ` Generated ${chunkPlan.chunks.length} markdown continuation part(s) and ${outputFiles.textPaths.length} text continuation part(s).`
+    ? buildChunkSummary(outputFiles)
     : "";
+  const formatSummary =
+    input.options.format === "both"
+      ? "Markdown and text outputs were separated into format-specific folders."
+      : `Generated ${input.options.format === "md" ? "markdown" : "text"} output only.`;
 
   return {
     workflow: "directory-copy",
-    summary: `Exported ${bundle.includedFiles} readable file(s) from ${bundle.totalFiles} scanned file(s) into literal directory copy artifacts.${chunkSummary}`,
+    summary: `Exported ${bundle.includedFiles} readable file(s) from ${bundle.totalFiles} scanned file(s) into literal directory copy artifacts. ${formatSummary}${chunkSummary}`,
     runDir: input.runDirectories.root,
     contextMarkdownPath: outputFiles.contextMarkdownPath,
     contextTextPath: outputFiles.contextTextPath,
@@ -163,19 +167,33 @@ async function writeDirectoryCopyOutputs(input: {
   textPaths: string[];
   artifactPaths: string[];
 }> {
+  const shouldWriteMarkdown = input.options.format !== "txt";
+  const shouldWriteText = input.options.format !== "md";
+  const markdownDir = input.options.format === "both" ? path.join(input.runRoot, "markdown") : input.runRoot;
+  const textDir = input.options.format === "both" ? path.join(input.runRoot, "text") : input.runRoot;
+
+  await Promise.all([
+    shouldWriteMarkdown ? fs.mkdir(markdownDir, { recursive: true }) : Promise.resolve(),
+    shouldWriteText ? fs.mkdir(textDir, { recursive: true }) : Promise.resolve(),
+  ]);
+
   if (!input.chunkPlan) {
-    const contextMarkdownPath = path.join(input.runRoot, `${input.outputFileBase}_context.md`);
-    const contextTextPath = path.join(input.runRoot, `${input.outputFileBase}_context.txt`);
-    await Promise.all([
-      fs.writeFile(contextMarkdownPath, renderDirectoryCopyMarkdown(input.bundle, input.options, input.runtimeInfo), "utf8"),
-      fs.writeFile(contextTextPath, renderDirectoryCopyText(input.bundle, input.options, input.runtimeInfo), "utf8"),
-    ]);
+    const contextMarkdownPath = shouldWriteMarkdown ? path.join(markdownDir, `${input.outputFileBase}_context.md`) : "";
+    const contextTextPath = shouldWriteText ? path.join(textDir, `${input.outputFileBase}_context.txt`) : "";
+    const writes: Array<Promise<void>> = [];
+    if (shouldWriteMarkdown) {
+      writes.push(fs.writeFile(contextMarkdownPath, renderDirectoryCopyMarkdown(input.bundle, input.options, input.runtimeInfo), "utf8"));
+    }
+    if (shouldWriteText) {
+      writes.push(fs.writeFile(contextTextPath, renderDirectoryCopyText(input.bundle, input.options, input.runtimeInfo), "utf8"));
+    }
+    await Promise.all(writes);
 
     return {
       contextMarkdownPath,
       contextTextPath,
-      markdownPaths: [contextMarkdownPath],
-      textPaths: [contextTextPath],
+      markdownPaths: contextMarkdownPath ? [contextMarkdownPath] : [],
+      textPaths: contextTextPath ? [contextTextPath] : [],
       artifactPaths: [],
     };
   }
@@ -185,41 +203,61 @@ async function writeDirectoryCopyOutputs(input: {
   const total = input.chunkPlan.chunks.length;
   for (const chunk of input.chunkPlan.chunks) {
     const suffix = formatChunkSuffix(chunk.index, total);
-    const markdownPath = path.join(input.runRoot, `${input.outputFileBase}_context_${suffix}.md`);
-    const textPath = path.join(input.runRoot, `${input.outputFileBase}_context_${suffix}.txt`);
-    markdownPaths.push(markdownPath);
-    textPaths.push(textPath);
-    await Promise.all([
-      fs.writeFile(
-        markdownPath,
-        renderDirectoryCopyMarkdown(input.bundle, input.options, input.runtimeInfo, {
-          chunk,
-          total,
-          lineTarget: input.chunkPlan.settings.lineTarget,
-          byteTarget: input.chunkPlan.settings.byteTarget,
-        }),
-        "utf8",
-      ),
-      fs.writeFile(
-        textPath,
-        renderDirectoryCopyText(input.bundle, input.options, input.runtimeInfo, {
-          chunk,
-          total,
-          lineTarget: input.chunkPlan.settings.lineTarget,
-          byteTarget: input.chunkPlan.settings.byteTarget,
-        }),
-        "utf8",
-      ),
-    ]);
+    const writes: Array<Promise<void>> = [];
+    if (shouldWriteMarkdown) {
+      const markdownPath = path.join(markdownDir, `${input.outputFileBase}_context_${suffix}.md`);
+      markdownPaths.push(markdownPath);
+      writes.push(
+        fs.writeFile(
+          markdownPath,
+          renderDirectoryCopyMarkdown(input.bundle, input.options, input.runtimeInfo, {
+            chunk,
+            total,
+            lineTarget: input.chunkPlan.settings.lineTarget,
+            byteTarget: input.chunkPlan.settings.byteTarget,
+          }),
+          "utf8",
+        ),
+      );
+    }
+    if (shouldWriteText) {
+      const textPath = path.join(textDir, `${input.outputFileBase}_context_${suffix}.txt`);
+      textPaths.push(textPath);
+      writes.push(
+        fs.writeFile(
+          textPath,
+          renderDirectoryCopyText(input.bundle, input.options, input.runtimeInfo, {
+            chunk,
+            total,
+            lineTarget: input.chunkPlan.settings.lineTarget,
+            byteTarget: input.chunkPlan.settings.byteTarget,
+          }),
+          "utf8",
+        ),
+      );
+    }
+    await Promise.all(writes);
   }
 
   return {
-    contextMarkdownPath: markdownPaths[0] ?? path.join(input.runRoot, `${input.outputFileBase}_context_part01of01.md`),
-    contextTextPath: textPaths[0] ?? path.join(input.runRoot, `${input.outputFileBase}_context_part01of01.txt`),
+    contextMarkdownPath: markdownPaths[0] ?? "",
+    contextTextPath: textPaths[0] ?? "",
     markdownPaths,
     textPaths,
     artifactPaths: [...markdownPaths, ...textPaths],
   };
+}
+
+function buildChunkSummary(outputFiles: { markdownPaths: string[]; textPaths: string[] }): string {
+  const parts: string[] = [];
+  if (outputFiles.markdownPaths.length > 0) {
+    parts.push(`${outputFiles.markdownPaths.length} markdown continuation part(s)`);
+  }
+  if (outputFiles.textPaths.length > 0) {
+    parts.push(`${outputFiles.textPaths.length} text continuation part(s)`);
+  }
+
+  return parts.length > 0 ? ` Generated ${parts.join(" and ")}.` : "";
 }
 
 function buildChunkManifest(

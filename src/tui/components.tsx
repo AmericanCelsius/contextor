@@ -325,8 +325,12 @@ export function WorkspacePane(props: {
           <Text color={TUI_THEME.ok} inverse>{completionPulse} WORKFLOW COMPLETE</Text>
           <Text color={TUI_THEME.ok}>{runState.result.summary}</Text>
           <Text color={TUI_THEME.text}>Run directory: {runState.result.runDir}</Text>
-          <Text color={TUI_THEME.text}>Markdown output: {runState.result.contextMarkdownPath}</Text>
-          <Text color={TUI_THEME.text}>Text output: {runState.result.contextTextPath}</Text>
+          {runState.result.contextMarkdownPath ? (
+            <Text color={TUI_THEME.text}>Markdown output: {runState.result.contextMarkdownPath}</Text>
+          ) : null}
+          {runState.result.contextTextPath ? (
+            <Text color={TUI_THEME.text}>Text output: {runState.result.contextTextPath}</Text>
+          ) : null}
           <Text color={TUI_THEME.text}>Manifest: {runState.result.manifestPath}</Text>
           <Newline />
           <Text color={TUI_THEME.accentSoft}>Completion Signal</Text>

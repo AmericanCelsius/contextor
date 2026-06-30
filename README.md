@@ -370,10 +370,15 @@ contextor folder "/absolute/path/to/folder" --goal "summarize this project folde
 ```bash
 contextor copy-folder "/absolute/path/to/folder" --goal "create a literal directory copy for downstream review"
 contextor copy-folder "/absolute/path/to/folder" --include-hidden
+contextor copy-folder "/absolute/path/to/folder" --format md
+contextor copy-folder "/absolute/path/to/folder" --format txt
+contextor copy-folder "/absolute/path/to/folder" --format both
 contextor copy-folder "/absolute/path/to/folder" --chunk-markdown --chunk-lines 10000 --chunk-bytes 8388608
 ```
 
-Literal directory copy is fully offline-capable. The TUI exposes a `Chunk Markdown` option in the `Export Literal Folder Copy` form. When enabled, Contextor writes continuation files such as `{source_folder}_context_part01of03.md` plus matching `.txt` parts. Chunks preserve file bodies, prefer directory/subdirectory boundaries, include the full directory listing, and record chunk paths/warnings in the manifest.
+Literal directory copy is fully offline-capable. The TUI `Requested Format` selector and CLI `--format` flag support markdown only, text only, or both. When both formats are selected, Contextor writes markdown files under `markdown/` and text files under `text/` inside the run folder.
+
+The TUI also exposes a `Chunk Markdown` option in the `Export Literal Folder Copy` form. When enabled, Contextor writes continuation files such as `{source_folder}_context_part01of03.md` plus matching `.txt` parts when text output is selected. Chunks preserve file bodies, prefer directory/subdirectory boundaries, include the full directory listing, and record chunk paths/warnings in the manifest.
 
 After a successful interactive CLI export, Contextor asks whether to open that run's output folder. Press `Enter`, `y`, or `yes` to open it; pass `--no-open-output-prompt` to skip the prompt.
 

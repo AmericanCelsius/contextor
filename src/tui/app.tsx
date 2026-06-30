@@ -495,8 +495,8 @@ export function ContextorTuiApp(props: {
             details: [
               workflowResult.summary,
               `Run folder: ${workflowResult.runDir}`,
-              `Markdown: ${workflowResult.contextMarkdownPath}`,
-              `Text: ${workflowResult.contextTextPath}`,
+              workflowResult.contextMarkdownPath ? `Markdown: ${workflowResult.contextMarkdownPath}` : "Markdown: not generated",
+              workflowResult.contextTextPath ? `Text: ${workflowResult.contextTextPath}` : "Text: not generated",
             ],
             confirmLabel: "Open output folder",
             cancelLabel: "Stay in Contextor",
@@ -1141,10 +1141,10 @@ function buildFormInsights(
         label: "Literal copy mode",
         details:
           formatValue === "md"
-            ? "Markdown is the requested primary format. Contextor also writes a text companion."
+            ? "Contextor will generate markdown output only."
             : formatValue === "txt"
-              ? "Text is the requested primary format. Contextor also writes a markdown companion."
-              : "Contextor will write both markdown and text root outputs for the directory copy.",
+              ? "Contextor will generate text output only."
+              : "Contextor will write markdown and text into separate folders inside the run.",
       });
       insights.push({
         tone: includeHiddenValue === "on" ? "warn" : "neutral",

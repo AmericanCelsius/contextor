@@ -282,8 +282,12 @@ program.parseAsync(process.argv).catch((error) => {
 function printResult(result: WorkflowResult): void {
   console.log(result.summary);
   console.log(`Run directory: ${result.runDir}`);
-  console.log(`Context markdown: ${result.contextMarkdownPath}`);
-  console.log(`Context text: ${result.contextTextPath}`);
+  if (result.contextMarkdownPath) {
+    console.log(`Context markdown: ${result.contextMarkdownPath}`);
+  }
+  if (result.contextTextPath) {
+    console.log(`Context text: ${result.contextTextPath}`);
+  }
   console.log(`Manifest: ${result.manifestPath}`);
   console.log(`Log: ${result.logPath}`);
   if (result.artifactPaths.length > 0) {

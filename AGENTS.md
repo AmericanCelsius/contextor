@@ -96,6 +96,7 @@ bash scripts/setup-macos.sh --link
 - keep directory-copy success prompts for opening the exact generated run folder
 - keep literal directory-copy output filenames source-folder-based, e.g. `my_project_context.md` and `my_project_context.txt`
 - keep strategic directory-copy chunks source-folder-based, e.g. `my_project_context_part01of03.md`, and do not split file bodies across chunks
+- keep `copy-folder --format md`, `--format txt`, and `--format both` honoring the requested output type; when both is selected, keep markdown and text files in separate run subfolders
 - keep `Export Literal Folder Copy` as the first TUI command and `View Latest Runs` as the second TUI command unless product direction changes explicitly
 - keep the latest-runs panel browsable with Up/Down and openable with Enter or `o`
 
