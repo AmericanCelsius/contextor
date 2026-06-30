@@ -11,6 +11,7 @@ It is meant to be a fast reference for what changed across the major build itera
 - Updated directory-copy manifests to record chunk settings, chunk output paths, chunk counts, and oversized-file warnings.
 - Fixed literal directory-copy format selection so markdown-only, text-only, and both-format exports generate only the requested output types.
 - Both-format literal directory-copy exports now separate generated markdown and text files into `markdown/` and `text/` folders inside each run.
+- Added default generated/cache directory omission for literal directory-copy exports, with TUI and CLI presets for `common`, `python`, `node`, `compiled`, and `none`.
 - Added first-class offline mode through `contextor offline`, `contextor tui --offline`, and `contextor start/launch --offline`.
 - Added an Offline Mode command-grid entry so local-only operation is reachable inside the TUI.
 - Disabled browser diagnostics and browser workflows cleanly while offline mode is active.

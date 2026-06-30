@@ -127,6 +127,8 @@ contextor copy-folder "/absolute/path/to/folder" --include-hidden --goal "create
 contextor copy-folder "/absolute/path/to/folder" --format md
 contextor copy-folder "/absolute/path/to/folder" --format txt
 contextor copy-folder "/absolute/path/to/folder" --format both
+contextor copy-folder "/absolute/path/to/folder" --omit-generated-dirs common
+contextor copy-folder "/absolute/path/to/folder" --include-generated-dirs
 contextor copy-folder "/absolute/path/to/folder" --chunk-markdown --chunk-lines 10000 --chunk-bytes 8388608
 ```
 
@@ -136,6 +138,8 @@ Literal directory copy notes:
 - it reuses the same path autocomplete and confirmation flow as the summarizer
 - the requested format can be markdown only, text only, or both
 - when both formats are selected, markdown output is written under `markdown/` and text output is written under `text/` inside the run
+- generated/cache folders are omitted by default with the `common` preset; use `--omit-generated-dirs none` or `--include-generated-dirs` to copy them
+- presets include `common`, `python`, `node`, `compiled`, and `none`
 - optional strategic chunking writes continuation files like `{source_folder}_context_part01of03.md` and matching `.txt` parts when text output is selected
 - chunking keeps file bodies whole, prefers directory/subdirectory boundaries, and includes the full directory listing in every part
 - it redacts `.env`-style secrets, tokens, usernames, emails, passwords, private keys, and database URLs by default

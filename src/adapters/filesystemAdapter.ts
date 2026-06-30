@@ -4,8 +4,9 @@ import path from "node:path";
 import { Logger } from "../core/logger";
 import { scoreFileCandidate, suppressDuplicateCandidates } from "../core/relevance";
 import { applyRedactions } from "../core/redaction";
-import { ContextorConfig, DirectoryCopyBundle, DirectoryCopyEntry, FileCandidate, FileSource } from "../core/types";
+import { ContextorConfig, DirectoryCopyBundle, DirectoryCopyEntry, FileCandidate, FileSource, GeneratedDirectoryOmitPreset } from "../core/types";
 import { isWithinDirectory, pathExists, resolveUserPath } from "../utils/files";
+import { getGeneratedDirectoryOmitNames } from "../utils/generatedDirectories";
 import { extractKeyPoints, summarizeText, truncate } from "../utils/text";
 
 const SUPPORTED_EXTENSIONS = new Set([".txt", ".md", ".pdf", ".json", ".csv", ".docx"]);
@@ -159,6 +160,7 @@ export class FilesystemAdapter {
     folderPath: string,
     options: {
       includeHidden?: boolean;
+      omitGeneratedDirs?: GeneratedDirectoryOmitPreset;
       onProgress?: (progress: { phase: "indexing" | "extracting" | "compiling" | "complete"; current: number; total: number; details?: string }) => Promise<void> | void;
       signal?: AbortSignal;
     } = {},
@@ -177,9 +179,13 @@ export class FilesystemAdapter {
 
     await this.logger.info("Scanning folder for literal directory copy", { folderPath: resolvedPath });
     const rootName = path.basename(resolvedPath);
+    const omitOptions = {
+      includeHidden: Boolean(options.includeHidden),
+      omitGeneratedDirs: options.omitGeneratedDirs ?? "common",
+    };
     const [candidates, directories] = await Promise.all([
-      this.walkDirectory(resolvedPath, options.signal, { includeAllFiles: true, includeHidden: Boolean(options.includeHidden) }),
-      this.walkDirectoryPaths(resolvedPath, rootName, options.signal, { includeHidden: Boolean(options.includeHidden) }),
+      this.walkDirectory(resolvedPath, options.signal, { includeAllFiles: true, ...omitOptions }),
+      this.walkDirectoryPaths(resolvedPath, rootName, options.signal, omitOptions),
     ]);
     throwIfAborted(options.signal);
 
@@ -246,7 +252,7 @@ export class FilesystemAdapter {
   private async walkDirectory(
     rootPath: string,
     signal?: AbortSignal,
-    options: { includeAllFiles?: boolean; includeHidden?: boolean } = {},
+    options: { includeAllFiles?: boolean; includeHidden?: boolean; omitGeneratedDirs?: GeneratedDirectoryOmitPreset } = {},
   ): Promise<FileCandidate[]> {
     throwIfAborted(signal);
     const candidates: FileCandidate[] = [];
@@ -263,6 +269,9 @@ export class FilesystemAdapter {
       const fullPath = path.join(rootPath, entry.name);
 
       if (entry.isDirectory()) {
+        if (shouldOmitGeneratedDirectory(entry.name, options.omitGeneratedDirs)) {
+          continue;
+        }
         candidates.push(...(await this.walkDirectory(fullPath, signal, options)));
         continue;
       }
@@ -289,7 +298,7 @@ export class FilesystemAdapter {
     rootPath: string,
     rootName: string,
     signal?: AbortSignal,
-    options: { includeHidden?: boolean } = {},
+    options: { includeHidden?: boolean; omitGeneratedDirs?: GeneratedDirectoryOmitPreset } = {},
   ): Promise<string[]> {
     const directories: string[] = [`${rootName}/`];
     await this.collectDirectoryPaths(rootPath, rootPath, rootName, directories, signal, options);
@@ -302,7 +311,7 @@ export class FilesystemAdapter {
     rootName: string,
     directories: string[],
     signal?: AbortSignal,
-    options: { includeHidden?: boolean } = {},
+    options: { includeHidden?: boolean; omitGeneratedDirs?: GeneratedDirectoryOmitPreset } = {},
   ): Promise<void> {
     throwIfAborted(signal);
     const entries = (await fs.readdir(currentPath, { withFileTypes: true })).sort((left, right) =>
@@ -316,6 +325,10 @@ export class FilesystemAdapter {
       }
 
       if (!entry.isDirectory()) {
+        continue;
+      }
+
+      if (shouldOmitGeneratedDirectory(entry.name, options.omitGeneratedDirs)) {
         continue;
       }
 
@@ -502,6 +515,14 @@ function describeNonTextFile(filePath: string, extension: string, size: number):
   const normalizedExtension = extension || path.extname(name).toLowerCase();
   const label = getNonTextFileTypeLabel(normalizedExtension);
   return `${label} named "${name}" (${name}). This file cannot be represented as literal text content, so the directory copy records its path, type, and ${size} byte size.`;
+}
+
+function shouldOmitGeneratedDirectory(directoryName: string, preset: GeneratedDirectoryOmitPreset | undefined): boolean {
+  if ((preset ?? "common") === "none") {
+    return false;
+  }
+
+  return getGeneratedDirectoryOmitNames(preset).includes(directoryName);
 }
 
 function getNonTextFileTypeLabel(extension: string): string {

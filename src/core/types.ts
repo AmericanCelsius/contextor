@@ -130,11 +130,14 @@ export interface CompileFolderOptions {
   limit?: number;
 }
 
+export type GeneratedDirectoryOmitPreset = "common" | "python" | "node" | "compiled" | "none";
+
 export interface CopyFolderOptions {
   goal: string;
   folderPath: string;
   format: "md" | "txt" | "both";
   includeHidden?: boolean;
+  omitGeneratedDirs?: GeneratedDirectoryOmitPreset;
   chunkMarkdown?: boolean;
   chunkLineTarget?: number;
   chunkByteTarget?: number;

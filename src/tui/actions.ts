@@ -46,6 +46,20 @@ export const TUI_ACTIONS: TuiAction[] = [
         hint: "Include dotfiles and dot-directories such as .gitignore and .claude.",
       },
       {
+        id: "omitGeneratedDirs",
+        label: "Omit Generated Dirs",
+        type: "select",
+        value: "common",
+        options: [
+          { label: "Common caches/build dirs", value: "common" },
+          { label: "Python caches only", value: "python" },
+          { label: "Node/web caches only", value: "node" },
+          { label: "Compiled build dirs only", value: "compiled" },
+          { label: "Do not omit", value: "none" },
+        ],
+        hint: "Default skips folders like __pycache__, node_modules, .next, dist, build, target, and temp caches.",
+      },
+      {
         id: "chunkMarkdown",
         label: "Chunk Markdown",
         type: "select",

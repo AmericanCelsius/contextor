@@ -5,6 +5,7 @@ import { FilesystemAdapter } from "../adapters/filesystemAdapter";
 import { RunLogger } from "../core/logger";
 import { CopyFolderOptions, DirectoryCopyBundle, RunDirectories, RunObserver, RuntimeEnvironmentInfo, WorkflowResult } from "../core/types";
 import { writeJsonFile } from "../utils/files";
+import { describeGeneratedDirectoryOmitPreset, getGeneratedDirectoryOmitNames } from "../utils/generatedDirectories";
 import { getRuntimeEnvironmentInfo } from "../utils/system";
 import {
   createDirectoryCopyChunkPlan,
@@ -24,6 +25,7 @@ export async function runCopyFolderWorkflow(input: {
 }): Promise<WorkflowResult> {
   const bundle = await input.filesystemAdapter.copyDirectory(input.options.folderPath, {
     includeHidden: input.options.includeHidden,
+    omitGeneratedDirs: input.options.omitGeneratedDirs ?? "common",
     signal: input.signal,
     onProgress: (progress) =>
       input.observe?.({
@@ -86,6 +88,7 @@ export async function runCopyFolderWorkflow(input: {
       directories: bundle.directories,
       requestedFormat: input.options.format,
       includeHidden: Boolean(input.options.includeHidden),
+      omittedGeneratedDirectories: buildOmittedGeneratedDirectoriesManifest(input.options.omitGeneratedDirs),
       chunking: buildChunkManifest(chunkPlan, outputFiles.markdownPaths, outputFiles.textPaths),
       totalFiles: bundle.totalFiles,
       includedFiles: bundle.includedFiles,
@@ -112,6 +115,7 @@ export async function runCopyFolderWorkflow(input: {
       runtime: runtimeInfo,
       requestedFormat: input.options.format,
       includeHidden: Boolean(input.options.includeHidden),
+      omittedGeneratedDirectories: buildOmittedGeneratedDirectoriesManifest(input.options.omitGeneratedDirs),
       chunking: buildChunkManifest(chunkPlan, outputFiles.markdownPaths, outputFiles.textPaths),
       outputFiles: {
         markdown: outputFiles.contextMarkdownPath,
@@ -129,6 +133,7 @@ export async function runCopyFolderWorkflow(input: {
     skippedFiles: bundle.skippedFiles,
     requestedFormat: input.options.format,
     includeHidden: Boolean(input.options.includeHidden),
+    omittedGeneratedDirectories: buildOmittedGeneratedDirectoriesManifest(input.options.omitGeneratedDirs),
     outputFileBase,
     chunking: buildChunkManifest(chunkPlan, outputFiles.markdownPaths, outputFiles.textPaths),
   });
@@ -260,6 +265,14 @@ function buildChunkSummary(outputFiles: { markdownPaths: string[]; textPaths: st
   return parts.length > 0 ? ` Generated ${parts.join(" and ")}.` : "";
 }
 
+function buildOmittedGeneratedDirectoriesManifest(preset: CopyFolderOptions["omitGeneratedDirs"]): Record<string, unknown> {
+  const normalizedPreset = preset ?? "common";
+  return {
+    preset: normalizedPreset,
+    names: getGeneratedDirectoryOmitNames(normalizedPreset),
+  };
+}
+
 function buildChunkManifest(
   chunkPlan: DirectoryCopyChunkPlan | undefined,
   markdownPaths: string[],
@@ -332,6 +345,7 @@ function renderDirectoryCopyMarkdown(
 - Relative root: ${bundle.rootName}/
 - Requested output format: ${options.format}
 - Include hidden dot entries: ${options.includeHidden ? "yes" : "no"}
+- Omitted generated/cache directories: ${describeGeneratedDirectoryOmitPreset(options.omitGeneratedDirs ?? "common")}
 - Total files scanned: ${bundle.totalFiles}
 - Text-representable files copied: ${bundle.includedFiles}
 - Non-text or error entries represented: ${bundle.skippedFiles}
@@ -356,6 +370,7 @@ ${runtimeLines.join("\n")}
 - Relative root: ${bundle.rootName}/
 - Requested output format: ${options.format}
 - Include hidden dot entries: ${options.includeHidden ? "yes" : "no"}
+- Omitted generated/cache directories: ${describeGeneratedDirectoryOmitPreset(options.omitGeneratedDirs ?? "common")}
 - Total files scanned: ${bundle.totalFiles}
 - Text-representable files copied: ${bundle.includedFiles}
 - Non-text or error entries represented: ${bundle.skippedFiles}
@@ -446,6 +461,7 @@ function renderDirectoryCopyText(
     `Relative root: ${bundle.rootName}/`,
     `Requested format: ${options.format}`,
     `Include hidden dot entries: ${options.includeHidden ? "yes" : "no"}`,
+    `Omitted generated/cache directories: ${describeGeneratedDirectoryOmitPreset(options.omitGeneratedDirs ?? "common")}`,
     `Total files scanned: ${bundle.totalFiles}`,
     `Text-representable files copied: ${bundle.includedFiles}`,
     `Non-text or error entries represented: ${bundle.skippedFiles}`,

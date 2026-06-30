@@ -5,6 +5,7 @@ import { ContextorOrchestrator } from "../core/orchestrator";
 import { CONTEXTOR_VERSION } from "../core/version";
 import { BrowserPageSummary, RunEvent, WorkflowResult } from "../core/types";
 import { clearTerminalViewport, getRecommendedFolderPaths, getRuntimeEnvironmentInfo, openPathInShell } from "../utils/system";
+import { describeGeneratedDirectoryOmitPreset, normalizeGeneratedDirectoryOmitPreset } from "../utils/generatedDirectories";
 import { TUI_ACTIONS } from "./actions";
 import { completeFolderPath, executeWorkflow, getFolderPathStatus, loadDashboardSnapshot } from "./controller";
 import { ActionMenu, BootSplash, ConfirmActionPane, ConfirmQuitPane, CornerBadge, FooterBar, FormPane, InfoPane, QuitSplash, WorkspacePane } from "./components";
@@ -1133,6 +1134,7 @@ function buildFormInsights(
     if (action.id === "directory-copy") {
       const formatValue = findFieldValue(fields, "format") || "both";
       const includeHiddenValue = findFieldValue(fields, "includeHidden") || "off";
+      const omitGeneratedDirsValue = normalizeGeneratedDirectoryOmitPreset(findFieldValue(fields, "omitGeneratedDirs"));
       const chunkMarkdownValue = findFieldValue(fields, "chunkMarkdown") || "off";
       const chunkLineTarget = findFieldValue(fields, "chunkLineTarget") || "10000";
       const chunkByteTarget = findFieldValue(fields, "chunkByteTarget") || "8388608";
@@ -1153,6 +1155,14 @@ function buildFormInsights(
           includeHiddenValue === "on"
             ? "Dotfiles and dot-directories will be included, including entries such as .gitignore and .claude."
             : "Dotfiles and dot-directories will be skipped unless you switch this field on.",
+      });
+      insights.push({
+        tone: omitGeneratedDirsValue === "none" ? "warn" : "ok",
+        label: "Generated/cache folders",
+        details:
+          omitGeneratedDirsValue === "none"
+            ? "Generated and cache folders will be copied if they are inside the selected folder."
+            : `Skipping ${describeGeneratedDirectoryOmitPreset(omitGeneratedDirsValue)}.`,
       });
       insights.push({
         tone: chunkMarkdownValue === "on" ? "ok" : "neutral",
@@ -1412,6 +1422,7 @@ function buildFolderWorkflowConfirmationDetails(
   if (action.id === "directory-copy") {
     details.push(`Requested format: ${(values.format || "both").trim() || "both"}`);
     details.push(`Include hidden: ${(values.includeHidden || "off").trim() || "off"}`);
+    details.push(`Omit generated dirs: ${normalizeGeneratedDirectoryOmitPreset(values.omitGeneratedDirs)}`);
     details.push(`Chunk markdown/text: ${(values.chunkMarkdown || "off").trim() || "off"}`);
     if ((values.chunkMarkdown || "off").trim().toLowerCase() === "on") {
       details.push(`Chunk line target: ${(values.chunkLineTarget || "10000").trim() || "10000"}`);

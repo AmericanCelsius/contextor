@@ -4,6 +4,7 @@ import { ContextorOrchestrator } from "../core/orchestrator";
 import { BrowserConnectionDiagnostics, RunEvent } from "../core/types";
 import { launchChromeDebugBrowser, openPathInShell } from "../utils/system";
 import { autocompletePathInput, inspectPathInput } from "../utils/files";
+import { normalizeGeneratedDirectoryOmitPreset } from "../utils/generatedDirectories";
 import { DashboardSnapshot, TuiActionId, TuiPathStatus, TuiWorkflowExecutionResult } from "./types";
 
 export async function loadDashboardSnapshot(
@@ -100,6 +101,7 @@ export async function executeWorkflow(
             folderPath: values.folderPath,
             format: parseCopyFormat(values.format),
             includeHidden: parseIncludeHidden(values.includeHidden),
+            omitGeneratedDirs: normalizeGeneratedDirectoryOmitPreset(values.omitGeneratedDirs),
             chunkMarkdown: parseToggle(values.chunkMarkdown),
             chunkLineTarget: parsePositiveInteger(values.chunkLineTarget, 10_000),
             chunkByteTarget: parsePositiveInteger(values.chunkByteTarget, 8 * 1024 * 1024),

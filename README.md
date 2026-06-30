@@ -373,10 +373,14 @@ contextor copy-folder "/absolute/path/to/folder" --include-hidden
 contextor copy-folder "/absolute/path/to/folder" --format md
 contextor copy-folder "/absolute/path/to/folder" --format txt
 contextor copy-folder "/absolute/path/to/folder" --format both
+contextor copy-folder "/absolute/path/to/folder" --omit-generated-dirs common
+contextor copy-folder "/absolute/path/to/folder" --include-generated-dirs
 contextor copy-folder "/absolute/path/to/folder" --chunk-markdown --chunk-lines 10000 --chunk-bytes 8388608
 ```
 
 Literal directory copy is fully offline-capable. The TUI `Requested Format` selector and CLI `--format` flag support markdown only, text only, or both. When both formats are selected, Contextor writes markdown files under `markdown/` and text files under `text/` inside the run folder.
+
+By default, literal copy skips common generated/cache folders so uploads are cleaner and smaller. The TUI `Omit Generated Dirs` selector and CLI `--omit-generated-dirs` flag support `common`, `python`, `node`, `compiled`, and `none`. The `common` preset skips folders such as `__pycache__`, `.pytest_cache`, `node_modules`, `.next`, `.turbo`, `dist`, `build`, `target`, `tmp`, and similar generated directories. Use `--include-generated-dirs` or select `Do not omit` to copy them anyway.
 
 The TUI also exposes a `Chunk Markdown` option in the `Export Literal Folder Copy` form. When enabled, Contextor writes continuation files such as `{source_folder}_context_part01of03.md` plus matching `.txt` parts when text output is selected. Chunks preserve file bodies, prefer directory/subdirectory boundaries, include the full directory listing, and record chunk paths/warnings in the manifest.
 
