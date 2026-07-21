@@ -375,12 +375,18 @@ contextor copy-folder "/absolute/path/to/folder" --format txt
 contextor copy-folder "/absolute/path/to/folder" --format both
 contextor copy-folder "/absolute/path/to/folder" --omit-generated-dirs common
 contextor copy-folder "/absolute/path/to/folder" --include-generated-dirs
+contextor copy-folder "/absolute/path/to/folder" --pdf
+contextor copy-folder "/absolute/path/to/folder" --no-pdf
 contextor copy-folder "/absolute/path/to/folder" --chunk-markdown --chunk-lines 10000 --chunk-bytes 8388608
 ```
 
 Literal directory copy is fully offline-capable. The TUI `Requested Format` selector and CLI `--format` flag support markdown only, text only, or both. When both formats are selected, Contextor writes markdown files under `markdown/` and text files under `text/` inside the run folder.
 
 By default, literal copy skips common generated/cache folders so uploads are cleaner and smaller. The TUI `Omit Generated Dirs` selector and CLI `--omit-generated-dirs` flag support `common`, `python`, `node`, `compiled`, and `none`. The `common` preset skips folders such as `__pycache__`, `.pytest_cache`, `node_modules`, `.next`, `.turbo`, `dist`, `build`, `target`, `tmp`, and similar generated directories. Use `--include-generated-dirs` or select `Do not omit` to copy them anyway.
+
+Media and binary files are metadata-only in literal directory copies. Contextor lists file path, type, size, status, and notes for formats such as `svg`, `png`, `jpg`, `mp4`, `mp3`, `webm`, `m4a`, and other image/audio/video files instead of embedding raw media bytes or SVG image data.
+
+Markdown directory-copy output is also rendered into searchable PDF by default when markdown is generated. This supports upload targets that accept PDF but reject `.md` or `.txt`, such as some Microsoft 365 Copilot and PowerPoint Copilot surfaces. Use `--no-pdf` or turn `PDF From Markdown` off in the TUI to skip this step. If no local Chromium-compatible browser is available for PDF rendering, Contextor logs a warning and keeps the markdown/text outputs.
 
 The TUI also exposes a `Chunk Markdown` option in the `Export Literal Folder Copy` form. When enabled, Contextor writes continuation files such as `{source_folder}_context_part01of03.md` plus matching `.txt` parts when text output is selected. Chunks preserve file bodies, prefer directory/subdirectory boundaries, include the full directory listing, and record chunk paths/warnings in the manifest.
 
@@ -414,6 +420,7 @@ Typical outputs include:
 - `context.txt`
 - `{source_folder}_context.md` and `{source_folder}_context.txt` for literal directory-copy runs
 - `{source_folder}_context_part01of03.md` and matching `.txt` parts for chunked literal directory-copy runs
+- `{source_folder}_context.pdf` or matching chunked PDF parts rendered from markdown directory-copy output
 - `logs/run.log`
 - workflow artifacts
 - source manifests

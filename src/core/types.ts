@@ -138,6 +138,7 @@ export interface CopyFolderOptions {
   format: "md" | "txt" | "both";
   includeHidden?: boolean;
   omitGeneratedDirs?: GeneratedDirectoryOmitPreset;
+  exportPdf?: boolean;
   chunkMarkdown?: boolean;
   chunkLineTarget?: number;
   chunkByteTarget?: number;

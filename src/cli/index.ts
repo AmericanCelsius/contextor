@@ -67,6 +67,8 @@ program
   .option("--include-hidden", "Include dotfiles and dot-directories such as .gitignore and .claude")
   .option("--omit-generated-dirs <preset>", "Omit generated/cache directories: common, python, node, compiled, or none", "common")
   .option("--include-generated-dirs", "Copy generated/cache directories instead of omitting them")
+  .option("--pdf", "Render generated markdown directory-copy output to PDF", true)
+  .option("--no-pdf", "Skip PDF rendering for directory-copy markdown output")
   .option("--chunk-markdown", "Split markdown and text outputs into strategic continuation chunks")
   .option("--chunk-lines <count>", "Target maximum rendered lines per chunk", "10000")
   .option("--chunk-bytes <bytes>", "Target maximum rendered bytes per chunk", "8388608")
@@ -82,6 +84,7 @@ program
         format: parseCopyFormat(options.format),
         includeHidden: Boolean(options.includeHidden),
         omitGeneratedDirs: options.includeGeneratedDirs ? "none" : normalizeGeneratedDirectoryOmitPreset(options.omitGeneratedDirs),
+        exportPdf: Boolean(options.pdf),
         chunkMarkdown: Boolean(options.chunkMarkdown),
         chunkLineTarget: parsePositiveInteger(options.chunkLines, 10_000),
         chunkByteTarget: parsePositiveInteger(options.chunkBytes, 8 * 1024 * 1024),

@@ -102,6 +102,7 @@ export async function executeWorkflow(
             format: parseCopyFormat(values.format),
             includeHidden: parseIncludeHidden(values.includeHidden),
             omitGeneratedDirs: normalizeGeneratedDirectoryOmitPreset(values.omitGeneratedDirs),
+            exportPdf: parseToggle(values.exportPdf ?? "on"),
             chunkMarkdown: parseToggle(values.chunkMarkdown),
             chunkLineTarget: parsePositiveInteger(values.chunkLineTarget, 10_000),
             chunkByteTarget: parsePositiveInteger(values.chunkByteTarget, 8 * 1024 * 1024),

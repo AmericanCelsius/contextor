@@ -6,6 +6,7 @@ import { RunLogger } from "../core/logger";
 import { CopyFolderOptions, DirectoryCopyBundle, RunDirectories, RunObserver, RuntimeEnvironmentInfo, WorkflowResult } from "../core/types";
 import { writeJsonFile } from "../utils/files";
 import { describeGeneratedDirectoryOmitPreset, getGeneratedDirectoryOmitNames } from "../utils/generatedDirectories";
+import { renderMarkdownTextToPdf } from "../utils/pdf";
 import { getRuntimeEnvironmentInfo } from "../utils/system";
 import {
   createDirectoryCopyChunkPlan,
@@ -75,6 +76,7 @@ export async function runCopyFolderWorkflow(input: {
     options: input.options,
     runtimeInfo,
     chunkPlan,
+    logger: input.logger,
   });
 
   await Promise.all([
@@ -90,6 +92,7 @@ export async function runCopyFolderWorkflow(input: {
       includeHidden: Boolean(input.options.includeHidden),
       omittedGeneratedDirectories: buildOmittedGeneratedDirectoriesManifest(input.options.omitGeneratedDirs),
       chunking: buildChunkManifest(chunkPlan, outputFiles.markdownPaths, outputFiles.textPaths),
+      pdfExport: buildPdfManifest(input.options, outputFiles.pdfPaths),
       totalFiles: bundle.totalFiles,
       includedFiles: bundle.includedFiles,
       skippedFiles: bundle.skippedFiles,
@@ -117,11 +120,14 @@ export async function runCopyFolderWorkflow(input: {
       includeHidden: Boolean(input.options.includeHidden),
       omittedGeneratedDirectories: buildOmittedGeneratedDirectoriesManifest(input.options.omitGeneratedDirs),
       chunking: buildChunkManifest(chunkPlan, outputFiles.markdownPaths, outputFiles.textPaths),
+      pdfExport: buildPdfManifest(input.options, outputFiles.pdfPaths),
       outputFiles: {
         markdown: outputFiles.contextMarkdownPath,
         text: outputFiles.contextTextPath,
+        pdf: outputFiles.contextPdfPath,
         markdownChunks: outputFiles.markdownPaths,
         textChunks: outputFiles.textPaths,
+        pdfChunks: outputFiles.pdfPaths,
       },
     }),
   ]);
@@ -136,6 +142,7 @@ export async function runCopyFolderWorkflow(input: {
     omittedGeneratedDirectories: buildOmittedGeneratedDirectoriesManifest(input.options.omitGeneratedDirs),
     outputFileBase,
     chunking: buildChunkManifest(chunkPlan, outputFiles.markdownPaths, outputFiles.textPaths),
+    pdfExport: buildPdfManifest(input.options, outputFiles.pdfPaths),
   });
 
   const chunkSummary = chunkPlan
@@ -145,10 +152,11 @@ export async function runCopyFolderWorkflow(input: {
     input.options.format === "both"
       ? "Markdown and text outputs were separated into format-specific folders."
       : `Generated ${input.options.format === "md" ? "markdown" : "text"} output only.`;
+  const pdfSummary = outputFiles.pdfPaths.length > 0 ? ` Generated ${outputFiles.pdfPaths.length} PDF version(s) from markdown.` : "";
 
   return {
     workflow: "directory-copy",
-    summary: `Exported ${bundle.includedFiles} readable file(s) from ${bundle.totalFiles} scanned file(s) into literal directory copy artifacts. ${formatSummary}${chunkSummary}`,
+    summary: `Exported ${bundle.includedFiles} readable file(s) from ${bundle.totalFiles} scanned file(s) into literal directory copy artifacts. ${formatSummary}${chunkSummary}${pdfSummary}`,
     runDir: input.runDirectories.root,
     contextMarkdownPath: outputFiles.contextMarkdownPath,
     contextTextPath: outputFiles.contextTextPath,
@@ -165,62 +173,84 @@ async function writeDirectoryCopyOutputs(input: {
   options: CopyFolderOptions;
   runtimeInfo: RuntimeEnvironmentInfo;
   chunkPlan?: DirectoryCopyChunkPlan;
+  logger: RunLogger;
 }): Promise<{
   contextMarkdownPath: string;
   contextTextPath: string;
+  contextPdfPath: string;
   markdownPaths: string[];
   textPaths: string[];
+  pdfPaths: string[];
   artifactPaths: string[];
 }> {
   const shouldWriteMarkdown = input.options.format !== "txt";
   const shouldWriteText = input.options.format !== "md";
+  const shouldWritePdf = shouldWriteMarkdown && (input.options.exportPdf ?? true);
   const markdownDir = input.options.format === "both" ? path.join(input.runRoot, "markdown") : input.runRoot;
   const textDir = input.options.format === "both" ? path.join(input.runRoot, "text") : input.runRoot;
+  const pdfDir = input.options.format === "both" ? path.join(input.runRoot, "pdf") : input.runRoot;
 
   await Promise.all([
     shouldWriteMarkdown ? fs.mkdir(markdownDir, { recursive: true }) : Promise.resolve(),
     shouldWriteText ? fs.mkdir(textDir, { recursive: true }) : Promise.resolve(),
+    shouldWritePdf ? fs.mkdir(pdfDir, { recursive: true }) : Promise.resolve(),
   ]);
 
   if (!input.chunkPlan) {
     const contextMarkdownPath = shouldWriteMarkdown ? path.join(markdownDir, `${input.outputFileBase}_context.md`) : "";
     const contextTextPath = shouldWriteText ? path.join(textDir, `${input.outputFileBase}_context.txt`) : "";
+    const contextPdfPath = shouldWritePdf ? path.join(pdfDir, `${input.outputFileBase}_context.pdf`) : "";
     const writes: Array<Promise<void>> = [];
+    let markdown = "";
     if (shouldWriteMarkdown) {
-      writes.push(fs.writeFile(contextMarkdownPath, renderDirectoryCopyMarkdown(input.bundle, input.options, input.runtimeInfo), "utf8"));
+      markdown = renderDirectoryCopyMarkdown(input.bundle, input.options, input.runtimeInfo);
+      writes.push(fs.writeFile(contextMarkdownPath, markdown, "utf8"));
     }
     if (shouldWriteText) {
       writes.push(fs.writeFile(contextTextPath, renderDirectoryCopyText(input.bundle, input.options, input.runtimeInfo), "utf8"));
     }
     await Promise.all(writes);
+    const pdfPaths = contextPdfPath
+      ? await renderPdfSafely({
+          markdown,
+          outputPath: contextPdfPath,
+          title: `${input.bundle.rootName} directory copy`,
+          logger: input.logger,
+        })
+      : [];
 
     return {
       contextMarkdownPath,
       contextTextPath,
+      contextPdfPath: pdfPaths[0] ?? "",
       markdownPaths: contextMarkdownPath ? [contextMarkdownPath] : [],
       textPaths: contextTextPath ? [contextTextPath] : [],
-      artifactPaths: [],
+      pdfPaths,
+      artifactPaths: pdfPaths,
     };
   }
 
   const markdownPaths: string[] = [];
   const textPaths: string[] = [];
+  const pdfPaths: string[] = [];
   const total = input.chunkPlan.chunks.length;
   for (const chunk of input.chunkPlan.chunks) {
     const suffix = formatChunkSuffix(chunk.index, total);
     const writes: Array<Promise<void>> = [];
+    let markdown = "";
     if (shouldWriteMarkdown) {
       const markdownPath = path.join(markdownDir, `${input.outputFileBase}_context_${suffix}.md`);
       markdownPaths.push(markdownPath);
+      markdown = renderDirectoryCopyMarkdown(input.bundle, input.options, input.runtimeInfo, {
+        chunk,
+        total,
+        lineTarget: input.chunkPlan.settings.lineTarget,
+        byteTarget: input.chunkPlan.settings.byteTarget,
+      });
       writes.push(
         fs.writeFile(
           markdownPath,
-          renderDirectoryCopyMarkdown(input.bundle, input.options, input.runtimeInfo, {
-            chunk,
-            total,
-            lineTarget: input.chunkPlan.settings.lineTarget,
-            byteTarget: input.chunkPlan.settings.byteTarget,
-          }),
+          markdown,
           "utf8",
         ),
       );
@@ -242,15 +272,50 @@ async function writeDirectoryCopyOutputs(input: {
       );
     }
     await Promise.all(writes);
+    if (shouldWritePdf && markdown) {
+      const pdfPath = path.join(pdfDir, `${input.outputFileBase}_context_${suffix}.pdf`);
+      pdfPaths.push(
+        ...(await renderPdfSafely({
+          markdown,
+          outputPath: pdfPath,
+          title: `${input.bundle.rootName} directory copy ${suffix}`,
+          logger: input.logger,
+        })),
+      );
+    }
   }
 
   return {
     contextMarkdownPath: markdownPaths[0] ?? "",
     contextTextPath: textPaths[0] ?? "",
+    contextPdfPath: pdfPaths[0] ?? "",
     markdownPaths,
     textPaths,
-    artifactPaths: [...markdownPaths, ...textPaths],
+    pdfPaths,
+    artifactPaths: [...markdownPaths, ...textPaths, ...pdfPaths],
   };
+}
+
+async function renderPdfSafely(input: {
+  markdown: string;
+  outputPath: string;
+  title: string;
+  logger: RunLogger;
+}): Promise<string[]> {
+  try {
+    await renderMarkdownTextToPdf({
+      markdown: input.markdown,
+      outputPath: input.outputPath,
+      title: input.title,
+    });
+    return [input.outputPath];
+  } catch (error) {
+    await input.logger.warn("Directory copy PDF export failed", {
+      outputPath: input.outputPath,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return [];
+  }
 }
 
 function buildChunkSummary(outputFiles: { markdownPaths: string[]; textPaths: string[] }): string {
@@ -270,6 +335,18 @@ function buildOmittedGeneratedDirectoriesManifest(preset: CopyFolderOptions["omi
   return {
     preset: normalizedPreset,
     names: getGeneratedDirectoryOmitNames(normalizedPreset),
+  };
+}
+
+function buildPdfManifest(options: CopyFolderOptions, pdfPaths: string[]): Record<string, unknown> {
+  return {
+    requested: options.exportPdf ?? true,
+    generated: pdfPaths.length > 0,
+    pdfPaths,
+    note:
+      options.format === "txt"
+        ? "PDF export requires markdown output and is skipped when the requested format is txt only."
+        : "PDF output is rendered from the generated markdown directory-copy artifact.",
   };
 }
 

@@ -60,6 +60,17 @@ export const TUI_ACTIONS: TuiAction[] = [
         hint: "Default skips folders like __pycache__, node_modules, .next, dist, build, target, and temp caches.",
       },
       {
+        id: "exportPdf",
+        label: "PDF From Markdown",
+        type: "select",
+        value: "on",
+        options: [
+          { label: "On", value: "on" },
+          { label: "Off", value: "off" },
+        ],
+        hint: "Render markdown output into searchable PDF files for Copilot-style upload surfaces.",
+      },
+      {
         id: "chunkMarkdown",
         label: "Chunk Markdown",
         type: "select",

@@ -13,8 +13,11 @@ const SUPPORTED_EXTENSIONS = new Set([".txt", ".md", ".pdf", ".json", ".csv", ".
 const KNOWN_BINARY_EXTENSIONS = new Set([
   ".7z",
   ".a",
+  ".aac",
   ".ai",
   ".apk",
+  ".avi",
+  ".avif",
   ".bin",
   ".bmp",
   ".class",
@@ -24,6 +27,7 @@ const KNOWN_BINARY_EXTENSIONS = new Set([
   ".epub",
   ".exe",
   ".gif",
+  ".flac",
   ".gz",
   ".heic",
   ".heif",
@@ -31,9 +35,14 @@ const KNOWN_BINARY_EXTENSIONS = new Set([
   ".jar",
   ".jpeg",
   ".jpg",
+  ".m4a",
+  ".m4v",
+  ".mkv",
   ".mp3",
   ".mp4",
   ".mov",
+  ".ogg",
+  ".opus",
   ".otf",
   ".pages",
   ".pdf.pkg",
@@ -44,12 +53,15 @@ const KNOWN_BINARY_EXTENSIONS = new Set([
   ".psd",
   ".pyc",
   ".so",
+  ".svg",
   ".tar",
   ".tif",
   ".tiff",
   ".ttf",
   ".wav",
+  ".webm",
   ".webp",
+  ".wmv",
   ".woff",
   ".woff2",
   ".xls",
@@ -526,9 +538,9 @@ function shouldOmitGeneratedDirectory(directoryName: string, preset: GeneratedDi
 }
 
 function getNonTextFileTypeLabel(extension: string): string {
-  const imageExtensions = new Set([".ai", ".bmp", ".gif", ".heic", ".heif", ".ico", ".jpeg", ".jpg", ".png", ".psd", ".tif", ".tiff", ".webp"]);
-  const audioExtensions = new Set([".mp3", ".wav"]);
-  const videoExtensions = new Set([".mp4", ".mov"]);
+  const imageExtensions = new Set([".ai", ".avif", ".bmp", ".gif", ".heic", ".heif", ".ico", ".jpeg", ".jpg", ".png", ".psd", ".svg", ".tif", ".tiff", ".webp"]);
+  const audioExtensions = new Set([".aac", ".flac", ".m4a", ".mp3", ".ogg", ".opus", ".wav"]);
+  const videoExtensions = new Set([".avi", ".m4v", ".mkv", ".mp4", ".mov", ".webm", ".wmv"]);
   const archiveExtensions = new Set([".7z", ".gz", ".tar", ".zip"]);
   const fontExtensions = new Set([".otf", ".ttf", ".woff", ".woff2"]);
   const spreadsheetExtensions = new Set([".xls", ".xlsx"]);

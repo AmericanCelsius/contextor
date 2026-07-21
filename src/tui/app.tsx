@@ -1135,6 +1135,7 @@ function buildFormInsights(
       const formatValue = findFieldValue(fields, "format") || "both";
       const includeHiddenValue = findFieldValue(fields, "includeHidden") || "off";
       const omitGeneratedDirsValue = normalizeGeneratedDirectoryOmitPreset(findFieldValue(fields, "omitGeneratedDirs"));
+      const exportPdfValue = findFieldValue(fields, "exportPdf") || "on";
       const chunkMarkdownValue = findFieldValue(fields, "chunkMarkdown") || "off";
       const chunkLineTarget = findFieldValue(fields, "chunkLineTarget") || "10000";
       const chunkByteTarget = findFieldValue(fields, "chunkByteTarget") || "8388608";
@@ -1163,6 +1164,16 @@ function buildFormInsights(
           omitGeneratedDirsValue === "none"
             ? "Generated and cache folders will be copied if they are inside the selected folder."
             : `Skipping ${describeGeneratedDirectoryOmitPreset(omitGeneratedDirsValue)}.`,
+      });
+      insights.push({
+        tone: exportPdfValue === "on" && formatValue !== "txt" ? "ok" : "neutral",
+        label: "PDF from markdown",
+        details:
+          exportPdfValue === "on" && formatValue !== "txt"
+            ? "Contextor will render the generated markdown directory copy into searchable PDF output."
+            : formatValue === "txt"
+              ? "PDF output is skipped because text-only format does not generate markdown."
+              : "PDF rendering is disabled for this run.",
       });
       insights.push({
         tone: chunkMarkdownValue === "on" ? "ok" : "neutral",
@@ -1423,6 +1434,7 @@ function buildFolderWorkflowConfirmationDetails(
     details.push(`Requested format: ${(values.format || "both").trim() || "both"}`);
     details.push(`Include hidden: ${(values.includeHidden || "off").trim() || "off"}`);
     details.push(`Omit generated dirs: ${normalizeGeneratedDirectoryOmitPreset(values.omitGeneratedDirs)}`);
+    details.push(`PDF from markdown: ${(values.exportPdf || "on").trim() || "on"}`);
     details.push(`Chunk markdown/text: ${(values.chunkMarkdown || "off").trim() || "off"}`);
     if ((values.chunkMarkdown || "off").trim().toLowerCase() === "on") {
       details.push(`Chunk line target: ${(values.chunkLineTarget || "10000").trim() || "10000"}`);

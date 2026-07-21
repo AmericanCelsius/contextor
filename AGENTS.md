@@ -98,6 +98,8 @@ bash scripts/setup-macos.sh --link
 - keep strategic directory-copy chunks source-folder-based, e.g. `my_project_context_part01of03.md`, and do not split file bodies across chunks
 - keep `copy-folder --format md`, `--format txt`, and `--format both` honoring the requested output type; when both is selected, keep markdown and text files in separate run subfolders
 - keep literal directory-copy generated/cache directory omission enabled by default with the `common` preset, and preserve the TUI/CLI option to switch presets or copy generated dirs
+- keep media files metadata-only in literal directory-copy outputs; do not embed raw SVG/image/audio/video data
+- keep markdown-to-PDF rendering available for literal directory-copy markdown outputs and non-fatal if local PDF rendering is unavailable
 - keep `Export Literal Folder Copy` as the first TUI command and `View Latest Runs` as the second TUI command unless product direction changes explicitly
 - keep the latest-runs panel browsable with Up/Down and openable with Enter or `o`
 
